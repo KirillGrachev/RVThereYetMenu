@@ -1,0 +1,24 @@
+# Артефакты сборки
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.dll.zip
+dist/
+
+# Дампы игры (генерируются UE4SS на машине автора, в репо не хранятся)
+dumps/
+*.ucas
+*.utoc
+CXXHeaderDump/
+UE4SS_ObjectDump.txt
+
+# IDE
+.idea/
+.vscode/
+*.suo
+
+# ОС
+.DS_Store
+Thumbs.db
