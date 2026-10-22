@@ -9,48 +9,52 @@ on:
 
 jobs:
   lua:
-    name: Lua - линт и тесты
-    runs-on: ubuntu-latest
+    name: Lua - lint and tests
+    # ubuntu-latest намеренно не используется: метка мигрирует между
+    # релизами Ubuntu, и набор пакетов lua5.4/lua-check под тестами
+    # поменялся бы сам, без единой строчки в diff. Версия закреплена явно.
+    runs-on: ubuntu-24.04
     steps:
-      - name: Чекаут репозитория
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
 
-      - name: Установка lua5.4 и luacheck
+      - name: Install lua5.4 and luacheck
+        # Пакет линтера в Ubuntu называется lua-check, бинарь - luacheck.
         run: |
           sudo apt-get update
           sudo apt-get install -y lua5.4 lua-check
 
-      - name: Проверка синтаксиса (luac -p)
+      - name: Syntax check (luac -p)
         run: find mod tests/lua -name '*.lua' -print0 | xargs -0 -n1 luac5.4 -p
 
-      - name: Линт luacheck
+      - name: Lint (luacheck)
         run: luacheck mod tests/lua --config .luacheckrc
 
-      - name: Тесты чистой Lua-логики
+      - name: Pure Lua logic tests
         run: lua5.4 tests/lua/run_tests.lua
 
   dotnet:
-    name: .NET - инструменты и тесты
-    runs-on: ubuntu-latest
+    name: .NET - tools and tests
+    runs-on: ubuntu-24.04
     steps:
-      - name: Чекаут репозитория
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
 
-      - name: Установка .NET 10 SDK
-        uses: actions/setup-dotnet@v4
+      - name: Install the .NET 10 SDK
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: Сборка tools (AssetIndex, AssetDump, NameCheck)
+      - name: Build the tools (AssetIndex, AssetDump, NameCheck)
         run: |
           dotnet build -c Release tools/AssetIndex
           dotnet build -c Release tools/AssetDump
           dotnet build -c Release tools/NameCheck
 
-      - name: Тесты NameCheck (xunit)
+      - name: NameCheck unit tests (xunit)
         run: dotnet test -c Release tests/NameCheck.Tests --nologo
 
-      - name: NameCheck end-to-end на синтетических фикстурах
+      - name: NameCheck end-to-end over synthetic fixtures
         # Игровые дампы в репозиторий не входят (см. .gitignore), поэтому
         # сквозной прогон валидатора выполняется на мини-наборе
         # tests/fixtures: те же форматы assets.txt / dumps / refs.lua.
@@ -61,21 +65,21 @@ jobs:
             --dumps tests/fixtures/dumps
 
   release:
-    name: Релиз - сборка ModOnly zip
+    name: Release - ModOnly zip
     if: github.event_name == 'release'
     needs: [ lua, dotnet ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - name: Чекаут репозитория
-        uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v7
 
-      - name: Упаковка мода (Mods + UE4SS_Signatures)
+      - name: Pack the mod (Mods + UE4SS_Signatures)
         run: |
           cd mod
           zip -r "../RVThereYetMenu-${{ github.event.release.tag_name }}-ModOnly.zip" \
             Mods UE4SS_Signatures
 
-      - name: Прикрепить архив к релизу
+      - name: Attach the archive to the release
         uses: softprops/action-gh-release@v2
         with:
           files: RVThereYetMenu-*-ModOnly.zip
