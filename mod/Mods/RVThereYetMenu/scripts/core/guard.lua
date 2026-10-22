@@ -7,12 +7,12 @@ local Log = require("core.log")
 
 local Guard = {}
 
---- Выполняет fn под pcall. Возвращает ok, resultOrError.
+--- Выполняет func под pcall. Возвращает ok, resultOrError.
 --- Ошибки логирует один раз на (label+сообщение) — повторные одинаковые
 --- падения (например, каждый кадр) не должны флудить консоль.
 local seenErrors = {}
-function Guard.Try(label, fn, ...)
-    local ok, result = pcall(fn, ...)
+function Guard.Try(label, func, ...)
+    local ok, result = pcall(func, ...)
     if not ok then
         local key = label .. "|" .. tostring(result)
         if not seenErrors[key] then
@@ -52,23 +52,21 @@ function Guard.Call(obj, methodName, ...)
     if not Guard.IsValid(obj) then
         return false, "object unavailable"
     end
-    local fn
-    local okIndex, indexErr = pcall(function() fn = obj[methodName] end)
-    if not okIndex or fn == nil then
+    local member
+    local indexOk = pcall(function() member = obj[methodName] end)
+    if not indexOk or member == nil then
         return false, "method '" .. methodName .. "' not found"
     end
-    if type(fn) ~= "function" and not (indexErr == nil and fn == nil) then
-        -- ufunctions приходят callable-объектами; если это не функция и не
-        -- callable — вызывать нельзя
-        local okType, t = pcall(function() return type(fn) end)
-        if okType and t ~= "function" and t ~= "userdata" and t ~= "table" then
-            return false, "member '" .. methodName .. "' is not callable (" .. t .. ")"
-        end
+    -- UFunction приходят callable-объектами (userdata/table); значение
+    -- любого другого типа вызывать нельзя.
+    local memberType = type(member)
+    if memberType ~= "function" and memberType ~= "userdata" and memberType ~= "table" then
+        return false, "member '" .. methodName .. "' is not callable (" .. memberType .. ")"
     end
-    local args = { ... }
-    local ok, err = pcall(function() fn(obj, table.unpack(args)) end)
-    if not ok then
-        return false, tostring(err)
+    local arguments = { ... }
+    local callOk, callError = pcall(function() member(obj, table.unpack(arguments)) end)
+    if not callOk then
+        return false, tostring(callError)
     end
     return true
 end

@@ -6,14 +6,14 @@ local Log = require("core.log")
 
 local Lang = {}
 
-local table_ = {}
+local translations = {}
 local language = "ru"
 local fallback = "en"
 
 --- Загружает TSV. Файл читается один раз при старте мода.
 function Lang.Load(path, lang)
     language = (lang or "ru"):lower()
-    table_ = {}
+    translations = {}
     local file = io.open(path, "r")
     if not file then
         Log.Warn("lang file not found: " .. tostring(path))
@@ -36,14 +36,14 @@ function Lang.Load(path, lang)
                 for i = 2, #columns do
                     entry[columns[i]] = cells[i]
                 end
-                table_[key] = entry
+                translations[key] = entry
             end
         end
     end
     file:close()
 
     local count = 0
-    for _ in pairs(table_) do count = count + 1 end
+    for _ in pairs(translations) do count = count + 1 end
     Log.Fmt("INFO", "lang loaded: %d keys, language=%s", count, language)
     return true
 end
@@ -52,7 +52,7 @@ end
 --- Пустая строка в активном языке считается отсутствием перевода и
 --- деградирует в fallback-язык (в Lua "" truthy — проверяем явно).
 function Lang.T(key, ...)
-    local entry = table_[key]
+    local entry = translations[key]
     local text = nil
     if entry then
         text = entry[language]
@@ -79,7 +79,7 @@ function Lang.GetLanguage()
     return language
 end
 
--- Экспорт для тестов.
-Lang._table = function() return table_ end
+--- Экспорт для тестов: снятая таблица переводов key -> { ru = ..., en = ... }.
+Lang.GetTranslations = function() return translations end
 
 return Lang

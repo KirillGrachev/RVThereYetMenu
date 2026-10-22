@@ -22,15 +22,15 @@ Console.WriteLine($"Game ver : {game}");
 var versions = new VersionContainer(game);
 var provider = new DefaultFileProvider(paksDir, SearchOption.AllDirectories, true, versions);
 
-provider.VfsRegistered += (_, e) => Console.WriteLine($"[registered] {e}");
-provider.VfsMounted += (_, e) => Console.WriteLine($"[mounted]    {e}");
+provider.VfsRegistered += (_, eventArgs) => Console.WriteLine($"[registered] {eventArgs}");
+provider.VfsMounted += (_, eventArgs) => Console.WriteLine($"[mounted]    {eventArgs}");
 
 provider.Initialize();
 
 Console.WriteLine($"Unloaded vfs: {provider.UnloadedVfs.Count}");
 foreach (var vfs in provider.UnloadedVfs)
     Console.WriteLine($"  needs key? {vfs.Name}");
-Console.WriteLine($"Required keys: {string.Join(", ", provider.RequiredKeys.Select(k => k.ToString()))}");
+Console.WriteLine($"Required keys: {string.Join(", ", provider.RequiredKeys.Select(key => key.ToString()))}");
 
 provider.Mount();
 
@@ -38,20 +38,22 @@ Console.WriteLine($"Mounted vfs : {provider.MountedVfs.Count}");
 Console.WriteLine($"Total files : {provider.Files.Count}");
 Console.WriteLine($"Loose files : {provider.LooseFileCount}");
 
-var ordered = provider.Files.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList();
-File.WriteAllLines(outFile, ordered);
+var sortedPaths = provider.Files.Keys.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToList();
+File.WriteAllLines(outFile, sortedPaths);
 Console.WriteLine($"Written: {outFile}");
 
 Console.WriteLine();
 Console.WriteLine("By extension:");
-foreach (var g in ordered.GroupBy(p => Path.GetExtension(p)).OrderByDescending(g => g.Count()))
-    Console.WriteLine($"{g.Key,-12} {g.Count()}");
+foreach (var byExtension in sortedPaths.GroupBy(packagePath => Path.GetExtension(packagePath))
+             .OrderByDescending(byExtension => byExtension.Count()))
+    Console.WriteLine($"{byExtension.Key,-12} {byExtension.Count()}");
 
 Console.WriteLine();
 Console.WriteLine("Top-level directories:");
-foreach (var g in ordered.GroupBy(p => "/" + string.Join("/", p.Split('/').Take(3)))
-             .OrderByDescending(g => g.Count())
+foreach (var byDirectory in sortedPaths
+             .GroupBy(packagePath => "/" + string.Join("/", packagePath.Split('/').Take(3)))
+             .OrderByDescending(byDirectory => byDirectory.Count())
              .Take(25))
-    Console.WriteLine($"{g.Count(),7}  {g.Key}");
+    Console.WriteLine($"{byDirectory.Count(),7}  {byDirectory.Key}");
 
 return 0;

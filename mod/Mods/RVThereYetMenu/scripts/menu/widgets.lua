@@ -18,89 +18,89 @@ local Guard = require("core.guard")
 local Log = require("core.log")
 local Theme = require("menu.theme")
 
-local W = {}
+local Widgets = {}
 
 local nameCounter = 0
 local ftextBroken = false
 
-function W.UniqueName(base)
+function Widgets.UniqueName(base)
     nameCounter = nameCounter + 1
     return string.format("RVTYM_%s_%d", base or "W", nameCounter)
 end
 
 --- Создать виджет класса UMG. classPath — "/Script/UMG.Border" и т.п.
-function W.New(classPath, outer, name)
-    local cls = StaticFindObject(classPath)
-    if cls == nil then
+function Widgets.New(classPath, outer, name)
+    local widgetClass = StaticFindObject(classPath)
+    if widgetClass == nil then
         error("widget class not found: " .. classPath)
     end
-    return StaticConstructObject(cls, outer, FName(name or W.UniqueName()))
+    return StaticConstructObject(widgetClass, outer, FName(name or Widgets.UniqueName()))
 end
 
 --- FText с деградацией (см. шапку файла).
 local ftextWarned = false
-function W.Text(raw)
-    local s = tostring(raw == nil and "" or raw)
+function Widgets.Text(raw)
+    local text = tostring(raw == nil and "" or raw)
     if not ftextBroken then
-        local ok, ft = pcall(function() return FText(s) end)
-        if ok and ft ~= nil then return ft end
+        local constructorOk, constructedText = pcall(function() return FText(text) end)
+        if constructorOk and constructedText ~= nil then return constructedText end
         ftextBroken = true
     end
-    local ok2, ft2 = pcall(function()
-        return UE.UKismetTextLibrary.Conv_StringToText(s)
+    local conversionOk, convertedText = pcall(function()
+        return UE.UKismetTextLibrary.Conv_StringToText(text)
     end)
-    if ok2 and ft2 ~= nil then return ft2 end
+    if conversionOk and convertedText ~= nil then return convertedText end
     if not ftextWarned then
         ftextWarned = true
         Log.Warn("FText unavailable: install ue4ss/UE4SS_Signatures/FText_Constructor.lua (see INSTALL.md). Falling back to raw strings, some texts may render empty.")
     end
-    return s
+    return text
 end
 
-function W.SetVisible(widget, visible)
+function Widgets.SetVisible(widget, visible)
     if not Guard.IsValid(widget) then return end
     widget.Visibility = visible and Theme.Visibility.SelfHitTestInvisible or Theme.Visibility.Collapsed
 end
 
 --- Canvas-панель: корень дерева виджетов, дети размещаются слотами с якорями.
-function W.Canvas(outer) return W.New("/Script/UMG.CanvasPanel", outer) end
+function Widgets.Canvas(outer) return Widgets.New("/Script/UMG.CanvasPanel", outer) end
 
 --- Вертикальный бокс; поле Add у возвращённого виджета добавляет ребёнка.
-function W.VBox(outer)
-    local box = W.New("/Script/UMG.VerticalBox", outer)
+function Widgets.VBox(outer)
+    local box = Widgets.New("/Script/UMG.VerticalBox", outer)
     box.Add = function(_, child) return box:AddChildToVerticalBox(child) end
     return box
 end
 
 --- Горизонтальный бокс; поле Add у возвращённого виджета добавляет ребёнка.
-function W.HBox(outer)
-    local box = W.New("/Script/UMG.HorizontalBox", outer)
+function Widgets.HBox(outer)
+    local box = Widgets.New("/Script/UMG.HorizontalBox", outer)
     box.Add = function(_, child) return box:AddChildToHorizontalBox(child) end
     return box
 end
 
 --- Прокручиваемый контейнер для длинных вкладок.
-function W.ScrollBox(outer)
-    local sb = W.New("/Script/UMG.ScrollBox", outer)
-    sb.Add = function(_, child) return sb:AddChild(child) end
-    return sb
+function Widgets.ScrollBox(outer)
+    local scrollBox = Widgets.New("/Script/UMG.ScrollBox", outer)
+    scrollBox.Add = function(_, child) return scrollBox:AddChild(child) end
+    return scrollBox
 end
 
 --- Переключатель страниц: по странице на вкладку меню.
-function W.Switcher(outer) return W.New("/Script/UMG.WidgetSwitcher", outer) end
+function Widgets.Switcher(outer) return Widgets.New("/Script/UMG.WidgetSwitcher", outer) end
 
 --- Бордер: фон и паддинги окна/секций.
-function W.Border(outer)
-    return W.New("/Script/UMG.Border", outer)
+function Widgets.Border(outer)
+    return Widgets.New("/Script/UMG.Border", outer)
 end
 
 --- Бокс фиксированного размера (габариты окна меню).
-function W.SizeBox(outer)
-    return W.New("/Script/UMG.SizeBox", outer)
+function Widgets.SizeBox(outer)
+    return Widgets.New("/Script/UMG.SizeBox", outer)
 end
 
 --- Добавляет child в vertical/horizontal box с паддингом и (опц.) fill.
-function W.AddTo(box, child, padding, fillWeight)
+function Widgets.AddTo(box, child, padding, fillWeight)
     local slot = box:Add(child)
     if slot then
         if padding then
@@ -116,125 +116,125 @@ function W.AddTo(box, child, padding, fillWeight)
 end
 
 --- Добавляет child на canvas с якорями/позицией/размером.
-function W.AddToCanvas(canvas, child, opts)
-    opts = opts or {}
+function Widgets.AddToCanvas(canvas, child, options)
+    options = options or {}
     local slot = canvas:AddChildToCanvas(child)
     if not slot then return nil end
     pcall(function()
-        local a = opts.anchor or { 0, 0 }
-        slot:SetAnchors({ Minimum = { X = a[1], Y = a[2] }, Maximum = { X = a[1], Y = a[2] } })
-        slot:SetAlignment({ X = (opts.align or { 0, 0 })[1], Y = (opts.align or { 0, 0 })[2] })
-        slot:SetPosition({ X = opts.x or 0, Y = opts.y or 0 })
-        if opts.autosize ~= false and not opts.size then
+        local anchor = options.anchor or { 0, 0 }
+        slot:SetAnchors({ Minimum = { X = anchor[1], Y = anchor[2] }, Maximum = { X = anchor[1], Y = anchor[2] } })
+        slot:SetAlignment({ X = (options.align or { 0, 0 })[1], Y = (options.align or { 0, 0 })[2] })
+        slot:SetPosition({ X = options.x or 0, Y = options.y or 0 })
+        if options.autosize ~= false and not options.size then
             slot:SetAutoSize(true)
         end
-        if opts.size then
-            slot:SetSize({ X = opts.size[1], Y = opts.size[2] })
+        if options.size then
+            slot:SetSize({ X = options.size[1], Y = options.size[2] })
         end
     end)
     return slot
 end
 
 --- Текстовый блок; поле UpdateText меняет текст без пересборки дерева.
-function W.TextBlock(outer, text, opts)
-    opts = opts or {}
-    local tb = W.New("/Script/UMG.TextBlock", outer)
+function Widgets.TextBlock(outer, text, options)
+    options = options or {}
+    local textBlock = Widgets.New("/Script/UMG.TextBlock", outer)
     pcall(function()
-        tb.Font.Size = opts.size or Theme.Fonts.Normal
-        tb:SetText(W.Text(text))
-        local color = opts.color or Theme.Colors.NormalText
-        tb:SetColorAndOpacity(Theme.FSlateColor(color.R, color.G, color.B, color.A))
-        tb:SetShadowOffset({ X = 1, Y = 1 })
-        tb:SetShadowColorAndOpacity(Theme.FLinearColor(0, 0, 0, 0.6))
-        if opts.alignment then
-            tb:SetJustification(opts.alignment)
+        textBlock.Font.Size = options.size or Theme.Fonts.Normal
+        textBlock:SetText(Widgets.Text(text))
+        local color = options.color or Theme.Colors.NormalText
+        textBlock:SetColorAndOpacity(Theme.FSlateColor(color.R, color.G, color.B, color.A))
+        textBlock:SetShadowOffset({ X = 1, Y = 1 })
+        textBlock:SetShadowColorAndOpacity(Theme.FLinearColor(0, 0, 0, 0.6))
+        if options.alignment then
+            textBlock:SetJustification(options.alignment)
         end
     end)
-    tb.UpdateText = function(_, newText)
-        pcall(function() tb:SetText(W.Text(newText)) end)
+    textBlock.UpdateText = function(_, newText)
+        pcall(function() textBlock:SetText(Widgets.Text(newText)) end)
     end
-    return tb
+    return textBlock
 end
 
 --- Кнопка с подписью и колбэком. onClick выполняется в контексте
 --- delegates UE4SS (вне game thread — вызывающий сам уходит в
 --- ExecuteInGameThread через Actions.Run).
-function W.Button(outer, label, onClick, opts)
-    opts = opts or {}
-    local btn = W.New("/Script/UMG.Button", outer)
+function Widgets.Button(outer, label, onClick, options)
+    options = options or {}
+    local button = Widgets.New("/Script/UMG.Button", outer)
     pcall(function()
-        local style = btn.WidgetStyle or nil
+        local style = button.WidgetStyle or nil
         if style then
             -- Normal/Tinted — базовые состояния; hovered/pressed оставим
             -- движку, чтобы не бороться со стилями вслепую.
             style.Normal.TintColor = Theme.FSlateColor(
-                (opts.background or Theme.Colors.ButtonBackground).R,
-                (opts.background or Theme.Colors.ButtonBackground).G,
-                (opts.background or Theme.Colors.ButtonBackground).B, 1.0)
+                (options.background or Theme.Colors.ButtonBackground).R,
+                (options.background or Theme.Colors.ButtonBackground).G,
+                (options.background or Theme.Colors.ButtonBackground).B, 1.0)
         end
     end)
 
-    local content = W.HBox(btn)
-    pcall(function() btn:SetContent(content) end)
+    local content = Widgets.HBox(button)
+    pcall(function() button:SetContent(content) end)
 
-    local tb = W.TextBlock(content, label, {
-        size = opts.size or Theme.Fonts.Normal,
-        color = opts.color or Theme.Colors.NormalText,
+    local labelText = Widgets.TextBlock(content, label, {
+        size = options.size or Theme.Fonts.Normal,
+        color = options.color or Theme.Colors.NormalText,
     })
-    W.AddTo(content, tb, { Left = 8, Top = 4, Right = 8, Bottom = 4 })
+    Widgets.AddTo(content, labelText, { Left = 8, Top = 4, Right = 8, Bottom = 4 })
 
-    local okBind, bindErr = pcall(function()
-        btn.OnClicked:Add(function()
+    local bindOk, bindError = pcall(function()
+        button.OnClicked:Add(function()
             if onClick then onClick() end
         end)
     end)
-    if not okBind then
-        Log.Warn("button delegate bind failed: " .. tostring(bindErr))
+    if not bindOk then
+        Log.Warn("button delegate bind failed: " .. tostring(bindError))
     end
 
-    btn.SetLabel = function(_, newText) tb:UpdateText(newText) end
-    return btn
+    button.SetLabel = function(_, newText) labelText:UpdateText(newText) end
+    return button
 end
 
 --- Чекбокс с подписью и колбэком onToggle(isChecked).
-function W.Checkbox(outer, label, initial, onToggle)
-    local cb = W.New("/Script/UMG.CheckBox", outer)
-    pcall(function() cb:SetIsChecked(initial == true) end)
+function Widgets.Checkbox(outer, label, initial, onToggle)
+    local checkbox = Widgets.New("/Script/UMG.CheckBox", outer)
+    pcall(function() checkbox:SetIsChecked(initial == true) end)
 
-    local row = W.HBox(outer)
-    W.AddTo(row, cb, { Right = 6 })
-    local tb = W.TextBlock(row, label)
-    W.AddTo(row, tb, { Top = 2 })
+    local row = Widgets.HBox(outer)
+    Widgets.AddTo(row, checkbox, { Right = 6 })
+    local labelText = Widgets.TextBlock(row, label)
+    Widgets.AddTo(row, labelText, { Top = 2 })
 
     pcall(function()
-        cb.OnCheckStateChanged:Add(function(checked)
+        checkbox.OnCheckStateChanged:Add(function(checked)
             if onToggle then onToggle(checked == true) end
         end)
     end)
-    row.SetLabel = function(_, newText) tb:UpdateText(newText) end
-    row.Checkbox = cb
+    row.SetLabel = function(_, newText) labelText:UpdateText(newText) end
+    row.Checkbox = checkbox
     return row
 end
 
 --- Слайдер min..max с подписью-значением. onChange(numberValue).
-function W.Slider(outer, label, min, max, value, onChange)
-    local row = W.HBox(outer)
-    local tb = W.TextBlock(row, string.format("%s: %s", label, tostring(value)))
-    W.AddTo(row, tb, { Right = 8, Top = 4 }, 0.45)
+function Widgets.Slider(outer, label, min, max, value, onChange)
+    local row = Widgets.HBox(outer)
+    local valueText = Widgets.TextBlock(row, string.format("%s: %s", label, tostring(value)))
+    Widgets.AddTo(row, valueText, { Right = 8, Top = 4 }, 0.45)
 
-    local slider = W.New("/Script/UMG.Slider", row)
+    local slider = Widgets.New("/Script/UMG.Slider", row)
     pcall(function()
         slider:SetMinValue(min)
         slider:SetMaxValue(max)
         slider:SetValue(value)
     end)
-    W.AddTo(row, slider, { Top = 6, Bottom = 6 }, 0.55)
+    Widgets.AddTo(row, slider, { Top = 6, Bottom = 6 }, 0.55)
 
     pcall(function()
-        slider.OnValueChanged:Add(function(v)
-            local iv = math.floor((tonumber(v) or value) + 0.5)
-            tb:UpdateText(string.format("%s: %d", label, iv))
-            if onChange then onChange(iv) end
+        slider.OnValueChanged:Add(function(newValue)
+            local roundedValue = math.floor((tonumber(newValue) or value) + 0.5)
+            valueText:UpdateText(string.format("%s: %d", label, roundedValue))
+            if onChange then onChange(roundedValue) end
         end)
     end)
     row.Slider = slider
@@ -242,45 +242,45 @@ function W.Slider(outer, label, min, max, value, onChange)
 end
 
 --- Секция: заголовок + бордер-контейнер (VBox внутри).
-function W.Section(outer, title)
-    local box = W.VBox(outer)
-    local header = W.TextBlock(box, title, { size = Theme.Fonts.Section, color = Theme.Colors.TitleText })
-    W.AddTo(box, header, { Top = Theme.Layout.SectionSpacing, Bottom = 2 })
+function Widgets.Section(outer, title)
+    local box = Widgets.VBox(outer)
+    local header = Widgets.TextBlock(box, title, { size = Theme.Fonts.Section, color = Theme.Colors.TitleText })
+    Widgets.AddTo(box, header, { Top = Theme.Layout.SectionSpacing, Bottom = 2 })
 
-    local border = W.Border(box)
+    local border = Widgets.Border(box)
     pcall(function()
         border:SetBrushColor(Theme.Colors.SectionBackground)
         border:SetPadding(Theme.Layout.Padding)
     end)
-    W.AddTo(box, border, { Bottom = 2 })
+    Widgets.AddTo(box, border, { Bottom = 2 })
 
-    local content = W.VBox(border)
+    local content = Widgets.VBox(border)
     pcall(function() border:SetContent(content) end)
     return content
 end
 
 --- Двухступенчатая кнопка для деструктивных действий: первый клик
 --- «взводит» подпись, второй (в пределах armSeconds) — исполняет.
-function W.DangerButton(outer, label, confirmLabel, onClick, armSeconds)
+function Widgets.DangerButton(outer, label, confirmLabel, onClick, armSeconds)
     local armed = false
-    local btn
-    btn = W.Button(outer, label, function()
+    local button
+    button = Widgets.Button(outer, label, function()
         if not armed then
             armed = true
-            btn:SetLabel(confirmLabel)
+            button:SetLabel(confirmLabel)
             ExecuteWithDelay((armSeconds or 3) * 1000, function()
                 if armed then
                     armed = false
-                    btn:SetLabel(label)
+                    button:SetLabel(label)
                 end
             end)
         else
             armed = false
-            btn:SetLabel(label)
+            button:SetLabel(label)
             if onClick then onClick() end
         end
     end, { background = Theme.Colors.DangerousBackground })
-    return btn
+    return button
 end
 
-return W
+return Widgets

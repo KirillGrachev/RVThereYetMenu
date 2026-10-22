@@ -3,12 +3,12 @@
 --- Здесь живут: реестр действий, исполнение строго в game thread,
 --- единый статус-ответ для status-бара и защита от двойного клика.
 ---
---- Действие (def):
+--- Действие (definition):
 ---   labelKey    — ключ lang.tsv для кнопки;
 ---   section     — grouping для логов/тестов;
 ---   dangerous   — требует подтверждения в UI (деструктивные dev-читы);
----   run(ctx)    -> ok:boolean, message:string|nil   (в game thread);
----   available(ctx) -> ok:boolean, reason:string|nil (nil-функция = всегда).
+---   run(context)       -> ok:boolean, message:string|nil (в game thread);
+---   available(context) -> ok:boolean, reason:string|nil  (nil-функция = всегда).
 local Guard = require("core.guard")
 local Log = require("core.log")
 local Refs = require("core.refs")
@@ -23,29 +23,29 @@ local Actions = {}
 Actions.Registry = {}
 local running = false
 
-function Actions.Register(id, def)
+function Actions.Register(id, definition)
     if Actions.Registry[id] then
         Log.Warn("action re-registered: " .. id)
     end
-    Actions.Registry[id] = def
+    Actions.Registry[id] = definition
 end
 
 --- Проверка доступности (для блокировки кнопок в UI).
-function Actions.Available(ctx, id)
-    local def = Actions.Registry[id]
-    if not def then return false, "unknown action" end
-    if not def.available then return true end
-    local ok, res, reason = pcall(def.available, ctx)
-    if not ok then return false, tostring(res) end
-    return res, reason
+function Actions.Available(context, id)
+    local definition = Actions.Registry[id]
+    if not definition then return false, "unknown action" end
+    if not definition.available then return true end
+    local callOk, available, reason = pcall(definition.available, context)
+    if not callOk then return false, tostring(available) end
+    return available, reason
 end
 
 --- Выполнить действие. Всегда через ExecuteInGameThread (UI-колбэки
---- ImGui/UMG приходят вне game thread), статус — в ctx.LastStatus и
+--- ImGui/UMG приходят вне game thread), статус — в context.LastStatus и
 --- в лог. Повторный запуск во время выполнения игнорируется.
-function Actions.Run(ctx, id)
-    local def = Actions.Registry[id]
-    if not def then
+function Actions.Run(context, id)
+    local definition = Actions.Registry[id]
+    if not definition then
         Log.Warn("unknown action: " .. tostring(id))
         return
     end
@@ -56,17 +56,19 @@ function Actions.Run(ctx, id)
     running = true
 
     ExecuteInGameThread(function()
-        local okRun, ok, msg = pcall(function() return def.run(ctx) end)
+        local callOk, succeeded, message = pcall(function() return definition.run(context) end)
         running = false
-        if not okRun then
-            ctx.LastStatus = id .. ": EXCEPTION " .. tostring(ok)
-            Log.Fmt("ERROR", "action %s threw: %s", id, tostring(ok))
-            if ctx.OnStatus then ctx.OnStatus(ctx.LastStatus) end
+        if not callOk then
+            -- pcall вернул ошибку в succeeded (второй результат — то, что бросил run)
+            context.LastStatus = id .. ": EXCEPTION " .. tostring(succeeded)
+            Log.Fmt("ERROR", "action %s threw: %s", id, tostring(succeeded))
+            if context.OnStatus then context.OnStatus(context.LastStatus) end
             return
         end
-        ctx.LastStatus = string.format("%s: %s", id, ok and (msg or "OK") or ("FAILED " .. (msg or "")))
-        Log.Fmt(ok and "INFO" or "WARN", "action %s -> %s", id, ok and (msg or "OK") or ("FAILED " .. (msg or "")))
-        if ctx.OnStatus then ctx.OnStatus(ctx.LastStatus) end
+        local resultText = succeeded and (message or "OK") or ("FAILED " .. (message or ""))
+        context.LastStatus = string.format("%s: %s", id, resultText)
+        Log.Fmt(succeeded and "INFO" or "WARN", "action %s -> %s", id, resultText)
+        if context.OnStatus then context.OnStatus(context.LastStatus) end
     end)
 end
 
@@ -95,9 +97,9 @@ function Actions.RegisterDefaults()
     Actions.Register("session.apply", {
         labelKey = "session.apply",
         section = "session",
-        run = function(ctx)
-            local ok, msg = Session.ApplyNow(ctx)
-            return ok, ok and ("MaxPlayers=" .. tostring(ctx.Config.MaxPlayers)) or msg
+        run = function(context)
+            local ok, msg = Session.ApplyNow(context)
+            return ok, ok and ("MaxPlayers=" .. tostring(context.Config.MaxPlayers)) or msg
         end,
     })
     Actions.Register("session.release", {
@@ -159,24 +161,24 @@ function Actions.RegisterDefaults()
             -- минимальную дистанцию до пешки игрока.
             local pawn = Engine.Pawn()
             if not pawn then return false, "pawn not found" end
-            local points = Engine.FindAll(Refs.ShortClasses.Checkpoint)
-            if #points == 0 then return false, "no checkpoints in world" end
+            local checkpoints = Engine.FindAll(Refs.ShortClasses.Checkpoint)
+            if #checkpoints == 0 then return false, "no checkpoints in world" end
             local ok, msg = Guard.Try("TP-nearest-checkpoint", function()
-                local pl = pawn:K2_GetActorLocation()
-                local best, bestD = nil, nil
-                for _, cp in ipairs(points) do
-                    if Guard.IsValid(cp) then
-                        local cl = cp:K2_GetActorLocation()
-                        local dx, dy, dz = cl.X - pl.X, cl.Y - pl.Y, cl.Z - pl.Z
-                        local d = dx * dx + dy * dy + dz * dz
-                        if not bestD or d < bestD then best, bestD = cp, d end
+                local pawnLocation = pawn:K2_GetActorLocation()
+                local nearest, nearestDistanceSquared = nil, nil
+                for _, checkpoint in ipairs(checkpoints) do
+                    if Guard.IsValid(checkpoint) then
+                        local checkpointLocation = checkpoint:K2_GetActorLocation()
+                        local deltaX, deltaY, deltaZ = checkpointLocation.X - pawnLocation.X, checkpointLocation.Y - pawnLocation.Y, checkpointLocation.Z - pawnLocation.Z
+                        local distanceSquared = deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ
+                        if not nearestDistanceSquared or distanceSquared < nearestDistanceSquared then nearest, nearestDistanceSquared = checkpoint, distanceSquared end
                     end
                 end
-                if not best then return false, "no valid checkpoint" end
-                local tl = best:K2_GetActorLocation()
-                local tr = best:K2_GetActorRotation()
-                local moved = pawn:K2_TeleportTo(tl, tr)
-                return moved == true, moved and ("moved to checkpoint (d2=" .. string.format("%.0f", bestD) .. ")") or "K2_TeleportTo refused"
+                if not nearest then return false, "no valid checkpoint" end
+                local targetLocation = nearest:K2_GetActorLocation()
+                local targetRotation = nearest:K2_GetActorRotation()
+                local moved = pawn:K2_TeleportTo(targetLocation, targetRotation)
+                return moved == true, moved and ("moved to checkpoint (sqr distance=" .. string.format("%.0f", nearestDistanceSquared) .. ")") or "K2_TeleportTo refused"
             end)
             return ok, msg
         end,
@@ -188,13 +190,13 @@ function Actions.RegisterDefaults()
         run = function()
             local pawn = Engine.Pawn()
             if not pawn then return false, "pawn not found" end
-            local cm = Engine.CheatManager()
-            if not cm then return false, "CheatManager not found" end
+            local cheatManager = Engine.CheatManager()
+            if not cheatManager then return false, "CheatManager not found" end
             local ok, msg = Guard.Try("TP-playerstart", function()
-                local start = cm:GetPlayerStartActor()
-                if not Guard.IsValid(start) then return false, "PlayerStart not found" end
-                local tl = start:K2_GetActorLocation()
-                local moved = pawn:K2_TeleportTo(tl, pawn:K2_GetActorRotation())
+                local playerStart = cheatManager:GetPlayerStartActor()
+                if not Guard.IsValid(playerStart) then return false, "PlayerStart not found" end
+                local targetLocation = playerStart:K2_GetActorLocation()
+                local moved = pawn:K2_TeleportTo(targetLocation, pawn:K2_GetActorRotation())
                 return moved == true, moved and "moved to player start" or "K2_TeleportTo refused"
             end)
             return ok, msg
@@ -221,10 +223,10 @@ function Actions.RegisterDefaults()
                 local pawn = Engine.Pawn()
                 if not pawn then return false, "pawn not found" end
                 local ok, msg = Guard.Try("WP-save-" .. slot, function()
-                    local loc = pawn:K2_GetActorLocation()
-                    local rot = pawn:K2_GetActorRotation()
+                    local location = pawn:K2_GetActorLocation()
+                    local rotation = pawn:K2_GetActorRotation()
                     State.Mirrors["Waypoint." .. slot] = {
-                        applied = { level = Engine.LevelName(), X = loc.X, Y = loc.Y, Z = loc.Z, Pitch = rot.Pitch, Yaw = rot.Yaw, Roll = rot.Roll },
+                        applied = { level = Engine.LevelName(), X = location.X, Y = location.Y, Z = location.Z, Pitch = rotation.Pitch, Yaw = rotation.Yaw, Roll = rotation.Roll },
                     }
                     return true, string.format("slot %d saved (%s)", slot, tostring(State.Mirrors["Waypoint." .. slot].applied.level))
                 end)
@@ -235,18 +237,18 @@ function Actions.RegisterDefaults()
             labelKey = "run.wp.apply",
             section = "run",
             run = function()
-                local wp = State.Mirrors["Waypoint." .. slot]
-                if not wp or not wp.applied then return false, "slot " .. slot .. " is empty" end
+                local waypoint = State.Mirrors["Waypoint." .. slot]
+                if not waypoint or not waypoint.applied then return false, "slot " .. slot .. " is empty" end
                 local level = Engine.LevelName()
-                if wp.applied.level and level and wp.applied.level ~= level then
+                if waypoint.applied.level and level and waypoint.applied.level ~= level then
                     return false, "waypoint belongs to another level"
                 end
                 local pawn = Engine.Pawn()
                 if not pawn then return false, "pawn not found" end
                 local ok, msg = Guard.Try("WP-apply-" .. slot, function()
-                    local dest = { X = wp.applied.X, Y = wp.applied.Y, Z = wp.applied.Z }
-                    local rot = { Pitch = wp.applied.Pitch, Yaw = wp.applied.Yaw, Roll = wp.applied.Roll }
-                    local moved = pawn:K2_TeleportTo(dest, rot)
+                    local destination = { X = waypoint.applied.X, Y = waypoint.applied.Y, Z = waypoint.applied.Z }
+                    local rotation = { Pitch = waypoint.applied.Pitch, Yaw = waypoint.applied.Yaw, Roll = waypoint.applied.Roll }
+                    local moved = pawn:K2_TeleportTo(destination, rotation)
                     return moved == true, moved and ("slot " .. slot .. " applied") or "K2_TeleportTo refused"
                 end)
                 return ok, msg

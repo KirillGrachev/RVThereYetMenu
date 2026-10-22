@@ -38,10 +38,10 @@ local function parse(text)
     for raw in (text .. "\n"):gmatch("([^\n]*)\n") do
         local line = raw:match("^%s*(.-)%s*$")
         if line ~= "" and not line:match("^[;#]") then
-            local sec = line:match("^%[(.+)%]$")
-            if sec then
-                section = data[sec] or {}
-                data[sec] = section
+            local sectionName = line:match("^%[(.+)%]$")
+            if sectionName then
+                section = data[sectionName] or {}
+                data[sectionName] = section
             else
                 local key, value = line:match("^([^=]+)%s*=%s*(.*)$")
                 if key then
@@ -55,16 +55,16 @@ end
 
 local function toBool(value, fallback)
     if value == nil then return fallback end
-    local v = tostring(value):lower()
-    if v == "true" or v == "1" or v == "yes" then return true end
-    if v == "false" or v == "0" or v == "no" then return false end
+    local text = tostring(value):lower()
+    if text == "true" or text == "1" or text == "yes" then return true end
+    if text == "false" or text == "0" or text == "no" then return false end
     return fallback
 end
 
 local function toNumber(value, fallback)
-    local n = tonumber(value)
-    if n == nil then return fallback end
-    return n
+    local number = tonumber(value)
+    if number == nil then return fallback end
+    return number
 end
 
 local function clamp(value, limit)
@@ -75,22 +75,22 @@ local function clamp(value, limit)
 end
 
 --- Приводит сырые строки к типам конфига и клампит численные значения.
---- Возвращает плоскую таблицу: cfg.ToggleKey, cfg.MaxPlayers, ...
+--- Возвращает плоскую таблицу: config.ToggleKey, config.MaxPlayers, ...
 local function normalize(raw)
-    local cfg = {}
+    local config = {}
 
-    cfg.ToggleKey = tostring(raw.Menu and raw.Menu.ToggleKey or DEFAULTS.Menu.ToggleKey):upper()
-    cfg.Language = tostring(raw.Menu and raw.Menu.Language or DEFAULTS.Menu.Language):lower()
+    config.ToggleKey = tostring(raw.Menu and raw.Menu.ToggleKey or DEFAULTS.Menu.ToggleKey):upper()
+    config.Language = tostring(raw.Menu and raw.Menu.Language or DEFAULTS.Menu.Language):lower()
 
-    cfg.MaxPlayers = math.floor(clamp(
+    config.MaxPlayers = math.floor(clamp(
         toNumber(raw.Session and raw.Session.MaxPlayers, DEFAULTS.Session.MaxPlayers),
         LIMITS.MaxPlayers))
-    cfg.AutoApplySlots = toBool(raw.Session and raw.Session.AutoApplySlots,
+    config.AutoApplySlots = toBool(raw.Session and raw.Session.AutoApplySlots,
         DEFAULTS.Session.AutoApplySlots)
 
-    cfg.LogLevel = tostring(raw.Logging and raw.Logging.Level or DEFAULTS.Logging.Level):upper()
+    config.LogLevel = tostring(raw.Logging and raw.Logging.Level or DEFAULTS.Logging.Level):upper()
 
-    return cfg
+    return config
 end
 
 --- Загружает конфиг из файла. Отсутствующий/нечитаемый файл — не ошибка:
@@ -103,30 +103,30 @@ function Config.Load(path)
     end
     local text = file:read("*a")
     file:close()
-    local ok, cfg = pcall(function()
+    local parseOk, parsed = pcall(function()
         return normalize(parse(text))
     end)
-    if not ok then
-        Log.Error("config.ini parse failed: " .. tostring(cfg) .. ", using defaults")
+    if not parseOk then
+        Log.Error("config.ini parse failed: " .. tostring(parsed) .. ", using defaults")
         return normalize({})
     end
-    return cfg
+    return parsed
 end
 
 --- Сохраняет конфиг обратно (после изменения значений из меню).
 --- Пишет все известные ключи, чтобы файл оставался полным и читаемым.
-function Config.Save(path, cfg)
+function Config.Save(path, config)
     local lines = {
         "[Menu]",
-        "ToggleKey = " .. tostring(cfg.ToggleKey or DEFAULTS.Menu.ToggleKey),
-        "Language = " .. tostring(cfg.Language or DEFAULTS.Menu.Language),
+        "ToggleKey = " .. tostring(config.ToggleKey or DEFAULTS.Menu.ToggleKey),
+        "Language = " .. tostring(config.Language or DEFAULTS.Menu.Language),
         "",
         "[Session]",
-        "MaxPlayers = " .. tostring(cfg.MaxPlayers or DEFAULTS.Session.MaxPlayers),
-        "AutoApplySlots = " .. tostring(cfg.AutoApplySlots ~= false),
+        "MaxPlayers = " .. tostring(config.MaxPlayers or DEFAULTS.Session.MaxPlayers),
+        "AutoApplySlots = " .. tostring(config.AutoApplySlots ~= false),
         "",
         "[Logging]",
-        "Level = " .. tostring(cfg.LogLevel or DEFAULTS.Logging.Level),
+        "Level = " .. tostring(config.LogLevel or DEFAULTS.Logging.Level),
         "",
     }
     local file = io.open(path, "w")
@@ -139,10 +139,10 @@ function Config.Save(path, cfg)
     return true
 end
 
--- Экспорт для тестов (tests/lua проверяют parse/normalize без файла).
-Config._parse = parse
-Config._normalize = normalize
-Config._clamp = clamp
+--- Экспорт для тестов: tests/lua проверяют парсинг и нормализацию без файла.
+Config.Parse = parse
+Config.Normalize = normalize
+Config.Clamp = clamp
 Config.LIMITS = LIMITS
 Config.DEFAULTS = DEFAULTS
 

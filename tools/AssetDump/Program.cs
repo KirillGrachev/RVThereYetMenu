@@ -16,18 +16,18 @@ using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse.UE4.Readers;
 using CUE4Parse.UE4.Versions;
 
-var usmapIdx = Array.IndexOf(args, "--usmap");
+var usmapArgumentIndex = Array.IndexOf(args, "--usmap");
 string? usmapPath = null;
-if (usmapIdx >= 0 && usmapIdx + 1 < args.Length)
+if (usmapArgumentIndex >= 0 && usmapArgumentIndex + 1 < args.Length)
 {
-    usmapPath = args[usmapIdx + 1];
-    args = args.Where((_, i) => i != usmapIdx && i != usmapIdx + 1).ToArray();
+    usmapPath = args[usmapArgumentIndex + 1];
+    args = args.Where((_, index) => index != usmapArgumentIndex && index != usmapArgumentIndex + 1).ToArray();
 }
 
 var paksDir = args[0];
 var outDir = args[1];
 var gameName = args.Length > 2 ? args[2] : "GAME_UE5_6";
-var rest = args.Skip(3).ToArray();
+var packageArguments = args.Skip(3).ToArray();
 
 if (!Enum.TryParse<EGame>(gameName, out var game))
 {
@@ -36,13 +36,13 @@ if (!Enum.TryParse<EGame>(gameName, out var game))
 }
 
 List<string> packages;
-if (rest.Length == 1 && File.Exists(rest[0]))
-    packages = File.ReadAllLines(rest[0])
-        .Select(l => l.Trim())
-        .Where(l => l.Length > 0 && !l.StartsWith('#'))
+if (packageArguments.Length == 1 && File.Exists(packageArguments[0]))
+    packages = File.ReadAllLines(packageArguments[0])
+        .Select(line => line.Trim())
+        .Where(line => line.Length > 0 && !line.StartsWith('#'))
         .ToList();
 else
-    packages = rest.ToList();
+    packages = packageArguments.ToList();
 
 Directory.CreateDirectory(outDir);
 
@@ -59,74 +59,74 @@ provider.Initialize();
 provider.Mount();
 Console.WriteLine($"Mounted {provider.MountedVfs.Count} vfs, {provider.Files.Count} files");
 
-var ok = 0;
-var namesOnly = 0;
+var fullCount = 0;
+var namesOnlyCount = 0;
 var failed = new List<string>();
 
 foreach (var pkgPath in packages)
 {
-    var safeName = pkgPath.Replace('/', '_').Replace(".uasset", "");
-    var outPath = Path.Combine(outDir, safeName + ".txt");
+    var dumpFileName = pkgPath.Replace('/', '_').Replace(".uasset", "");
+    var dumpPath = Path.Combine(outDir, dumpFileName + ".txt");
     try
     {
-        using var w = new StreamWriter(outPath);
-        w.WriteLine($"# Package: {pkgPath}");
+        using var writer = new StreamWriter(dumpPath);
+        writer.WriteLine($"# Package: {pkgPath}");
 
-        var done = false;
+        var fullDumpWritten = false;
         if (usmapPath is not null)
         {
             try
             {
-                var pkg = provider.LoadPackage(pkgPath);
-                w.WriteLine($"# Exports: {pkg.ExportMapLength}, Imports: {pkg.ImportMapLength}, Names: {pkg.NameMap.Length}");
-                w.WriteLine("# Mode: FULL (usmap)");
-                w.WriteLine();
-                foreach (var export in pkg.GetExports())
+                var package = provider.LoadPackage(pkgPath);
+                writer.WriteLine($"# Exports: {package.ExportMapLength}, Imports: {package.ImportMapLength}, Names: {package.NameMap.Length}");
+                writer.WriteLine("# Mode: FULL (usmap)");
+                writer.WriteLine();
+                foreach (var export in package.GetExports())
                 {
-                    w.WriteLine($"[{export.ExportType}] {export.GetFullName()}");
+                    writer.WriteLine($"[{export.ExportType}] {export.GetFullName()}");
                     try
                     {
                         var classType = export.GetType();
                         var superField = classType.GetField("SuperStruct") ?? classType.BaseType?.GetField("SuperStruct");
                         var super = superField?.GetValue(export);
                         if (super is not null)
-                            w.WriteLine($"  SuperStruct: {super.GetType().GetProperty("Name")?.GetValue(super)}");
+                            writer.WriteLine($"  SuperStruct: {super.GetType().GetProperty("Name")?.GetValue(super)}");
                     }
                     catch
                     {
                         // не критично
                     }
 
-                    foreach (var tag in export.Properties)
-                        w.WriteLine($"  {tag}");
-                    w.WriteLine();
+                    foreach (var propertyTag in export.Properties)
+                        writer.WriteLine($"  {propertyTag}");
+                    writer.WriteLine();
                 }
 
-                done = true;
-                ok++;
+                fullDumpWritten = true;
+                fullCount++;
                 Console.WriteLine($"[full]  {pkgPath}");
             }
             catch (Exception ex)
             {
-                w.WriteLine($"# FULL failed ({ex.GetType().Name}: {ex.Message.Split('\n')[0]}) — falling back to NAMES");
+                writer.WriteLine($"# FULL failed ({ex.GetType().Name}: {ex.Message.Split('\n')[0]}) — falling back to NAMES");
             }
         }
 
-        if (!done)
+        if (!fullDumpWritten)
         {
-            var data = provider.Files[pkgPath].Read();
+            var packageData = provider.Files[pkgPath].Read();
             FNameEntrySerialized[]? names = null;
-            long usedStart = -1;
-            foreach (var start in new long[] { 60, 68, 64, 72 })
+            long nameBatchOffset = -1;
+            foreach (var candidateOffset in new long[] { 60, 68, 64, 72 })
             {
                 try
                 {
-                    var ar = new FByteArchive(pkgPath, data, versions) { Position = start };
-                    var batch = FNameEntrySerialized.LoadNameBatch(ar);
+                    var archive = new FByteArchive(pkgPath, packageData, versions) { Position = candidateOffset };
+                    var batch = FNameEntrySerialized.LoadNameBatch(archive);
                     if (batch.Length > 0 && (names == null || batch.Length > names.Length))
                     {
                         names = batch;
-                        usedStart = start;
+                        nameBatchOffset = candidateOffset;
                     }
                 }
                 catch
@@ -138,13 +138,13 @@ foreach (var pkgPath in packages)
             if (names == null || names.Length == 0)
                 throw new InvalidDataException("name batch not found at expected offsets");
 
-            w.WriteLine($"# Names: {names.Length} (batch@{usedStart})");
-            w.WriteLine("# Mode: NAMES");
-            w.WriteLine();
-            foreach (var n in names)
-                w.WriteLine(n.Name);
+            writer.WriteLine($"# Names: {names.Length} (batch@{nameBatchOffset})");
+            writer.WriteLine("# Mode: NAMES");
+            writer.WriteLine();
+            foreach (var nameEntry in names)
+                writer.WriteLine(nameEntry.Name);
 
-            namesOnly++;
+            namesOnlyCount++;
             Console.WriteLine($"[names] {pkgPath} ({names.Length})");
         }
     }
@@ -156,5 +156,5 @@ foreach (var pkgPath in packages)
 }
 
 Console.WriteLine();
-Console.WriteLine($"Done: {ok} full, {namesOnly} names-only, {failed.Count} failed -> {outDir}");
+Console.WriteLine($"Done: {fullCount} full, {namesOnlyCount} names-only, {failed.Count} failed -> {outDir}");
 return failed.Count == 0 ? 0 : 1;

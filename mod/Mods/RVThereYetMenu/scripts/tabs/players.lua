@@ -6,15 +6,15 @@ local Lang = require("core.lang")
 local Engine = require("core.engine")
 local Actions = require("actions")
 local Theme = require("menu.theme")
-local W = require("menu.widgets")
+local Widgets = require("menu.widgets")
 
 local Tab = { Id = "players", TitleKey = "tab.players" }
 
-local els = {}
+local ui = {}
 
-local function playerDisplayName(ps)
+local function playerDisplayName(playerState)
     local ok, name = Guard.Try("PlayerName", function()
-        local raw = ps.PlayerName
+        local raw = playerState.PlayerName
         if raw == nil then return "?" end
         if raw.ToString then return raw:ToString() end
         return tostring(raw)
@@ -23,49 +23,49 @@ local function playerDisplayName(ps)
     return "?"
 end
 
-function Tab.Build(page, ctx)
-    local list = W.Section(page, Lang.T("players.title.list"))
-    els.listBox = W.VBox(list)
-    W.AddTo(list, els.listBox)
+function Tab.Build(page, context)
+    local listSection = Widgets.Section(page, Lang.T("players.title.list"))
+    ui.listBox = Widgets.VBox(listSection)
+    Widgets.AddTo(listSection, ui.listBox)
 
-    local actions = W.Section(page, Lang.T("players.title.actions"))
-    local row = W.HBox(actions)
-    W.AddTo(actions, row, { Bottom = 3 })
-    W.AddTo(row, W.Button(row, Lang.T("players.epipens"), function()
-        Actions.Run(ctx, "players.epipens")
+    local actionsSection = Widgets.Section(page, Lang.T("players.title.actions"))
+    local row = Widgets.HBox(actionsSection)
+    Widgets.AddTo(actionsSection, row, { Bottom = 3 })
+    Widgets.AddTo(row, Widgets.Button(row, Lang.T("players.epipens"), function()
+        Actions.Run(context, "players.epipens")
     end), { Right = 4 }, 1.0)
-    W.AddTo(row, W.Button(row, Lang.T("players.removeinactive"), function()
-        Actions.Run(ctx, "players.removeinactive")
+    Widgets.AddTo(row, Widgets.Button(row, Lang.T("players.removeinactive"), function()
+        Actions.Run(context, "players.removeinactive")
     end), {}, 1.0)
 
-    W.AddTo(actions, W.Button(actions, Lang.T("players.ignoreattached"), function()
-        Actions.Run(ctx, "players.ignoreattached")
+    Widgets.AddTo(actionsSection, Widgets.Button(actionsSection, Lang.T("players.ignoreattached"), function()
+        Actions.Run(context, "players.ignoreattached")
     end), { Bottom = 3 })
 
-    local dev = W.Section(page, Lang.T("players.title.dev"))
-    W.AddTo(dev, W.DangerButton(dev,
+    local devSection = Widgets.Section(page, Lang.T("players.title.dev"))
+    Widgets.AddTo(devSection, Widgets.DangerButton(devSection,
         Lang.T("players.damageall"),
         Lang.T("players.confirm"),
-        function() Actions.Run(ctx, "players.damageall") end), { Bottom = 3 })
+        function() Actions.Run(context, "players.damageall") end), { Bottom = 3 })
 end
 
 function Tab.Refresh()
-    if not Guard.IsValid(els.listBox or nil) then return end
+    if not Guard.IsValid(ui.listBox or nil) then return end
     local players, reason = Engine.AllPlayerStates()
-    pcall(function() els.listBox:ClearChildren() end)
+    pcall(function() ui.listBox:ClearChildren() end)
     if not players then
-        W.AddTo(els.listBox, W.TextBlock(els.listBox, tostring(reason or "?"),
+        Widgets.AddTo(ui.listBox, Widgets.TextBlock(ui.listBox, tostring(reason or "?"),
             { size = Theme.Fonts.Small, color = Theme.Colors.MutedText }))
         return
     end
     if #players == 0 then
-        W.AddTo(els.listBox, W.TextBlock(els.listBox, Lang.T("players.empty"),
+        Widgets.AddTo(ui.listBox, Widgets.TextBlock(ui.listBox, Lang.T("players.empty"),
             { size = Theme.Fonts.Small, color = Theme.Colors.MutedText }))
         return
     end
-    for i, ps in ipairs(players) do
-        W.AddTo(els.listBox, W.TextBlock(els.listBox,
-            string.format("%d. %s", i, playerDisplayName(ps)),
+    for i, playerState in ipairs(players) do
+        Widgets.AddTo(ui.listBox, Widgets.TextBlock(ui.listBox,
+            string.format("%d. %s", i, playerDisplayName(playerState)),
             { size = Theme.Fonts.Normal }), { Bottom = 2 })
     end
 end

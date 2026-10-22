@@ -53,13 +53,13 @@ end
 --- Запоминает зеркало значения. original сохраняется один раз —
 --- повторные применения не должны затирать истинное исходное значение.
 function State.Mirror(name, applied, original)
-    local m = State.Mirrors[name] or {}
-    m.applied = applied
-    if original ~= nil and m.original == nil then
-        m.original = original
+    local mirror = State.Mirrors[name] or {}
+    mirror.applied = applied
+    if original ~= nil and mirror.original == nil then
+        mirror.original = original
     end
-    State.Mirrors[name] = m
-    return m
+    State.Mirrors[name] = mirror
+    return mirror
 end
 
 function State.GetMirror(name)

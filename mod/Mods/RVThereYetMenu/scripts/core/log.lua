@@ -5,43 +5,43 @@
 local Log = {}
 
 local LEVELS = { DEBUG = 10, INFO = 20, WARN = 30, ERROR = 40 }
-local current = LEVELS.INFO
-local tag = "RVThereYetMenu"
+local currentLevel = LEVELS.INFO
+local prefix = "RVThereYetMenu"
 
---- Инициализирует тег и уровень. Вызывается из main.lua до первого сообщения.
+--- Инициализирует префикс и уровень. Вызывается из main.lua до первого сообщения.
 function Log.Init(modTag, levelName)
-    if modTag then tag = modTag end
+    if modTag then prefix = modTag end
     Log.SetLevel(levelName)
 end
 
 --- Устанавливает уровень по имени; неизвестное имя трактует как INFO,
 --- потому что опечатка в конфиге не должна оставлять мод немым.
 function Log.SetLevel(levelName)
-    current = LEVELS[tostring(levelName or "INFO"):upper()] or LEVELS.INFO
+    currentLevel = LEVELS[tostring(levelName or "INFO"):upper()] or LEVELS.INFO
 end
 
 function Log.GetLevel()
     for name, value in pairs(LEVELS) do
-        if value == current then return name end
+        if value == currentLevel then return name end
     end
     return "INFO"
 end
 
-local function emit(level, msg)
-    if LEVELS[level] < current then return end
-    local line = string.format("[%s] [%s] %s", tag, level, tostring(msg))
+local function emit(level, message)
+    if LEVELS[level] < currentLevel then return end
+    local line = string.format("[%s] [%s] %s", prefix, level, tostring(message))
     -- print у UE4SS уходит и в GUI-консоль, и в UE4SS.log
     print(line)
 end
 
-function Log.Debug(msg) emit("DEBUG", msg) end
-function Log.Info(msg) emit("INFO", msg) end
-function Log.Warn(msg) emit("WARN", msg) end
-function Log.Error(msg) emit("ERROR", msg) end
+function Log.Debug(message) emit("DEBUG", message) end
+function Log.Info(message) emit("INFO", message) end
+function Log.Warn(message) emit("WARN", message) end
+function Log.Error(message) emit("ERROR", message) end
 
 --- Форматированный вывод: Log.Fmt("INFO", "cap %d -> %d", a, b).
-function Log.Fmt(level, fmt, ...)
-    emit(level, string.format(fmt, ...))
+function Log.Fmt(level, format, ...)
+    emit(level, string.format(format, ...))
 end
 
 return Log

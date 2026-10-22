@@ -73,12 +73,12 @@ public class RefsParserTests
     {
         var parsed = RefsParser.Parse(Fixture);
 
-        Assert.Contains(parsed, r => r.Section == "Assets" && r.Value == "/Game/Ride/Game/BP_SaveGamePlayer");
-        Assert.Contains(parsed, r => r.Section == "EngineClasses" && r.Value == "/Script/Engine.GameSession");
-        Assert.Contains(parsed, r => r.Section == "Hooks" && r.Value == "/Script/Engine.GameSession:ReceiveBeginPlay");
-        Assert.Contains(parsed, r => r.Section == "ShortClasses" && r.Value == "BP_SaveGamePlayer_C");
-        Assert.Contains(parsed, r => r.Section == "CosmeticTags" && r.Value == "Cosmetic.Glasses");
-        Assert.Contains(parsed, r => r.Section == "LevelTags" && r.Value == "Level.JungleLevel");
+        Assert.Contains(parsed, entry => entry.Section == "Assets" && entry.Value == "/Game/Ride/Game/BP_SaveGamePlayer");
+        Assert.Contains(parsed, entry => entry.Section == "EngineClasses" && entry.Value == "/Script/Engine.GameSession");
+        Assert.Contains(parsed, entry => entry.Section == "Hooks" && entry.Value == "/Script/Engine.GameSession:ReceiveBeginPlay");
+        Assert.Contains(parsed, entry => entry.Section == "ShortClasses" && entry.Value == "BP_SaveGamePlayer_C");
+        Assert.Contains(parsed, entry => entry.Section == "CosmeticTags" && entry.Value == "Cosmetic.Glasses");
+        Assert.Contains(parsed, entry => entry.Section == "LevelTags" && entry.Value == "Level.JungleLevel");
     }
 
     [Fact]
@@ -86,13 +86,13 @@ public class RefsParserTests
     {
         var parsed = RefsParser.Parse(Fixture);
 
-        var maxPlayers = parsed.Single(r => r.Value == "MaxPlayers");
+        var maxPlayers = parsed.Single(entry => entry.Value == "MaxPlayers");
         Assert.Equal("Members", maxPlayers.Section);
         Assert.Equal("GameSession", maxPlayers.Owner);
 
-        var saveMembers = parsed.Where(r => r.Section == "Members" && r.Owner == "BP_SaveGamePlayer").ToList();
+        var saveMembers = parsed.Where(entry => entry.Section == "Members" && entry.Owner == "BP_SaveGamePlayer").ToList();
         Assert.Equal(2, saveMembers.Count);
-        Assert.Contains(saveMembers, r => r.Value == "GetUnlockedCosmetics");
+        Assert.Contains(saveMembers, entry => entry.Value == "GetUnlockedCosmetics");
     }
 
     [Fact]

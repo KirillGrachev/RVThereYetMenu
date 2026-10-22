@@ -15,23 +15,23 @@ local Lang = require("core.lang")
 local State = require("core.state")
 local Engine = require("core.engine")
 local Theme = require("menu.theme")
-local W = require("menu.widgets")
+local Widgets = require("menu.widgets")
 
 local MenuUI = {}
 
-local ctx = nil
-local tabDefs = {}
+local context = nil
+local tabDefinitions = {}
 local hud = nil
 local rootCanvas = nil
-local switcher = nil
+local tabSwitcher = nil
 local statusText = nil
 local tabButtons = {}
 local activeTabIndex = 1
 local isOpen = false
 
-function MenuUI.Init(context, tabs)
-    ctx = context
-    tabDefs = tabs
+function MenuUI.Init(appContext, tabs)
+    context = appContext
+    tabDefinitions = tabs
 end
 
 function MenuUI.IsOpen()
@@ -41,113 +41,113 @@ end
 --- Текст в статус-бар (из любого потока — уходим в game thread).
 function MenuUI.SetStatus(text)
     if not Guard.IsValid(statusText) then return end
-    local line = tostring(text or "")
-    if #line > 160 then line = line:sub(1, 157) .. "..." end
+    local truncated = tostring(text or "")
+    if #truncated > 160 then truncated = truncated:sub(1, 157) .. "..." end
     ExecuteInGameThread(function()
         if Guard.IsValid(statusText) then
-            statusText:UpdateText(line)
+            statusText:UpdateText(truncated)
         end
     end)
 end
 
 local function highlightActiveTab()
-    for i, btn in ipairs(tabButtons) do
+    for index, button in ipairs(tabButtons) do
         pcall(function()
-            local color = (i == activeTabIndex) and Theme.Colors.TabActive or Theme.Colors.TabInactive
-            btn:SetBackgroundColor(Theme.FLinearColor(color.R, color.G, color.B, color.A))
+            local color = (index == activeTabIndex) and Theme.Colors.TabActive or Theme.Colors.TabInactive
+            button:SetBackgroundColor(Theme.FLinearColor(color.R, color.G, color.B, color.A))
         end)
     end
 end
 
 local function selectTab(index)
-    if not switcher or not Guard.IsValid(switcher) then return end
+    if not tabSwitcher or not Guard.IsValid(tabSwitcher) then return end
     activeTabIndex = index
-    pcall(function() switcher:SetActiveWidgetIndex(index - 1) end)
+    pcall(function() tabSwitcher:SetActiveWidgetIndex(index - 1) end)
     highlightActiveTab()
-    local tab = tabDefs[index]
+    local tab = tabDefinitions[index]
     if tab and tab.Refresh then
-        local ok, err = pcall(tab.Refresh, ctx)
+        local ok, err = pcall(tab.Refresh, context)
         if not ok then Log.Warn("tab refresh failed: " .. tostring(err)) end
     end
 end
 
 --- Построить дерево виджетов. Только game thread.
 local function buildHud()
-    local gi, giReason = Engine.GameInstance()
-    if not gi then
-        return false, giReason or "GameInstance not found"
+    local gameInstance, reason = Engine.GameInstance()
+    if not gameInstance then
+        return false, reason or "GameInstance not found"
     end
 
     local ok, err = pcall(function()
-        hud = StaticConstructObject(StaticFindObject("/Script/UMG.UserWidget"), gi, FName(W.UniqueName("HUD")))
-        hud.WidgetTree = StaticConstructObject(StaticFindObject("/Script/UMG.WidgetTree"), hud, FName(W.UniqueName("Tree")))
+        hud = StaticConstructObject(StaticFindObject("/Script/UMG.UserWidget"), gameInstance, FName(Widgets.UniqueName("HUD")))
+        hud.WidgetTree = StaticConstructObject(StaticFindObject("/Script/UMG.WidgetTree"), hud, FName(Widgets.UniqueName("Tree")))
 
-        rootCanvas = W.Canvas(hud.WidgetTree)
+        rootCanvas = Widgets.Canvas(hud.WidgetTree)
         hud.WidgetTree.RootWidget = rootCanvas
 
         -- Размер окна: SizeBox с фиксированными габаритами по центру экрана.
-        local size = W.SizeBox(rootCanvas)
+        local windowBox = Widgets.SizeBox(rootCanvas)
         pcall(function()
-            size:SetWidthOverride(Theme.Layout.WindowWidth)
-            size:SetHeightOverride(Theme.Layout.WindowHeight)
+            windowBox:SetWidthOverride(Theme.Layout.WindowWidth)
+            windowBox:SetHeightOverride(Theme.Layout.WindowHeight)
         end)
-        W.AddToCanvas(rootCanvas, size, { anchor = { 0.5, 0.5 }, align = { 0.5, 0.5 }, size = { Theme.Layout.WindowWidth, Theme.Layout.WindowHeight } })
+        Widgets.AddToCanvas(rootCanvas, windowBox, { anchor = { 0.5, 0.5 }, align = { 0.5, 0.5 }, size = { Theme.Layout.WindowWidth, Theme.Layout.WindowHeight } })
 
-        local border = W.Border(size)
+        local border = Widgets.Border(windowBox)
         pcall(function()
             border:SetBrushColor(Theme.Colors.WindowBackground)
             border:SetPadding(Theme.Layout.Padding)
         end)
-        pcall(function() size:SetContent(border) end)
+        pcall(function() windowBox:SetContent(border) end)
 
-        local root = W.VBox(border)
-        pcall(function() border:SetContent(root) end)
+        local rootBox = Widgets.VBox(border)
+        pcall(function() border:SetContent(rootBox) end)
 
         -- Шапка: название + версия + кнопка закрытия.
-        local header = W.HBox(root)
-        local title = W.TextBlock(header, string.format("%s  v%s", Lang.T("menu.title"), tostring(ctx.Version)), {
+        local header = Widgets.HBox(rootBox)
+        local title = Widgets.TextBlock(header, string.format("%s  v%s", Lang.T("menu.title"), tostring(context.Version)), {
             size = Theme.Fonts.Title, color = Theme.Colors.TitleText,
         })
-        W.AddTo(header, title, { Top = 2, Bottom = 6 }, 1.0)
-        local closeBtn = W.Button(header, "X", function() MenuUI.Close() end, { size = Theme.Fonts.Normal })
-        W.AddTo(header, closeBtn, { Left = 6 })
-        W.AddTo(root, header, { Bottom = 4 })
+        Widgets.AddTo(header, title, { Top = 2, Bottom = 6 }, 1.0)
+        local closeButton = Widgets.Button(header, "X", function() MenuUI.Close() end, { size = Theme.Fonts.Normal })
+        Widgets.AddTo(header, closeButton, { Left = 6 })
+        Widgets.AddTo(rootBox, header, { Bottom = 4 })
 
         -- Панель вкладок.
-        local tabBar = W.HBox(root)
+        local tabBar = Widgets.HBox(rootBox)
         tabButtons = {}
-        for i, tab in ipairs(tabDefs) do
-            local btn = W.Button(tabBar, Lang.T(tab.TitleKey), function() selectTab(i) end, { size = Theme.Fonts.Tab })
-            W.AddTo(tabBar, btn, { Right = 3, Bottom = 4 }, 1.0)
-            tabButtons[i] = btn
+        for index, tab in ipairs(tabDefinitions) do
+            local button = Widgets.Button(tabBar, Lang.T(tab.TitleKey), function() selectTab(index) end, { size = Theme.Fonts.Tab })
+            Widgets.AddTo(tabBar, button, { Right = 3, Bottom = 4 }, 1.0)
+            tabButtons[index] = button
         end
-        W.AddTo(root, tabBar, { Bottom = 4 })
+        Widgets.AddTo(rootBox, tabBar, { Bottom = 4 })
 
         -- Контент: WidgetSwitcher, страница вкладки = ScrollBox с VBox.
-        switcher = W.Switcher(root)
-        W.AddTo(root, switcher, { Bottom = 4 }, 1.0)
-        for _, tab in ipairs(tabDefs) do
-            local scroll = W.ScrollBox(switcher)
-            pcall(function() switcher:AddChild(scroll) end)
-            local page = W.VBox(scroll)
-            pcall(function() scroll:AddChild(page) end)
+        tabSwitcher = Widgets.Switcher(rootBox)
+        Widgets.AddTo(rootBox, tabSwitcher, { Bottom = 4 }, 1.0)
+        for _, tab in ipairs(tabDefinitions) do
+            local scrollBox = Widgets.ScrollBox(tabSwitcher)
+            pcall(function() tabSwitcher:AddChild(scrollBox) end)
+            local page = Widgets.VBox(scrollBox)
+            pcall(function() scrollBox:AddChild(page) end)
             if tab.Build then
-                tab.Build(page, ctx)
+                tab.Build(page, context)
             end
         end
 
         -- Статус-бар.
-        statusText = W.TextBlock(root, Lang.T("menu.ready"), { size = Theme.Fonts.Small, color = Theme.Colors.StatusText })
-        W.AddTo(root, statusText, { Top = 2 })
+        statusText = Widgets.TextBlock(rootBox, Lang.T("menu.ready"), { size = Theme.Fonts.Small, color = Theme.Colors.StatusText })
+        Widgets.AddTo(rootBox, statusText, { Top = 2 })
 
         hud:AddToViewport(99)
-        W.SetVisible(rootCanvas, false)
+        Widgets.SetVisible(rootCanvas, false)
     end)
 
     if not ok then
         hud = nil
         rootCanvas = nil
-        switcher = nil
+        tabSwitcher = nil
         statusText = nil
         tabButtons = {}
         return false, tostring(err)
@@ -158,24 +158,24 @@ local function buildHud()
 end
 
 local function setInput(inMenu)
-    local pc = Engine.PlayerController()
-    if not pc then return end
+    local playerController = Engine.PlayerController()
+    if not playerController then return end
     pcall(function()
         if inMenu then
-            UE.UWidgetBlueprintLibrary.SetInputMode_GameAndUI(pc, hud, 0, false)
+            UE.UWidgetBlueprintLibrary.SetInputMode_GameAndUI(playerController, hud, 0, false)
         else
-            UE.UWidgetBlueprintLibrary.SetInputMode_GameOnly(pc)
+            UE.UWidgetBlueprintLibrary.SetInputMode_GameOnly(playerController)
         end
     end)
-    Guard.Set(pc, "bShowMouseCursor", inMenu)
+    Guard.Set(playerController, "bShowMouseCursor", inMenu)
 end
 
 local function startRefreshLoop()
     LoopAsync(1000, function()
         if not isOpen then return true end
-        local tab = tabDefs[activeTabIndex]
+        local tab = tabDefinitions[activeTabIndex]
         if tab and tab.Refresh then
-            local ok, err = pcall(tab.Refresh, ctx)
+            local ok, err = pcall(tab.Refresh, context)
             if not ok then Log.Debug("refresh failed: " .. tostring(err)) end
         end
         return false
@@ -188,11 +188,11 @@ function MenuUI.Open()
         local ok, reason = buildHud()
         if not ok then
             Log.Warn("menu build failed: " .. tostring(reason))
-            if ctx and ctx.OnStatus then ctx.OnStatus("menu build failed: " .. tostring(reason)) end
+            if context and context.OnStatus then context.OnStatus("menu build failed: " .. tostring(reason)) end
             return
         end
     end
-    W.SetVisible(rootCanvas, true)
+    Widgets.SetVisible(rootCanvas, true)
     isOpen = true
     setInput(true)
     startRefreshLoop()
@@ -203,7 +203,7 @@ function MenuUI.Close()
     if not isOpen then return end
     isOpen = false
     if Guard.IsValid(rootCanvas) then
-        W.SetVisible(rootCanvas, false)
+        Widgets.SetVisible(rootCanvas, false)
     end
     setInput(false)
     Log.Debug("menu closed")
@@ -221,7 +221,7 @@ function MenuUI.Invalidate()
     isOpen = false
     hud = nil
     rootCanvas = nil
-    switcher = nil
+    tabSwitcher = nil
     statusText = nil
     tabButtons = {}
     Guard.ResetErrorCache()

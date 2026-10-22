@@ -3,11 +3,12 @@
 //
 // Источник истины мода — scripts/core/refs.lua. Инструмент парсит его
 // секции и сверяет каждое имя с офлайн-данными игры:
-//   --assets   assets.txt от tools/AssetIndex (пакеты IoStore);
-//   --dumps    каталог name-batch дампов от tools/AssetDump;
+//   --refs        refs.lua (обязательно);
+//   --assets      assets.txt от tools/AssetIndex (пакеты IoStore);
+//   --dumps       каталог name-batch дампов от tools/AssetDump;
 //   --object-dump UE4SS_ObjectDump.txt / CXXHeaderDump-склейка (опц.):
-//              по нему дополнительно проверяются движковые имена
-//              (без него они попадают в статус ENGINE = whitelist).
+//                 по нему дополнительно проверяются движковые имена
+//                 (без него они попадают в статус ENGINE = whitelist).
 //
 // Статусы: OK / ENGINE / UNKNOWN. Наличие UNKNOWN -> exit 1.
 //
@@ -29,15 +30,15 @@ public static class RefsParser
     {
         var start = text.IndexOf(name + " = {", StringComparison.Ordinal);
         if (start < 0) return null;
-        var i = text.IndexOf('{', start);
+        var braceIndex = text.IndexOf('{', start);
         var depth = 0;
-        for (var j = i; j < text.Length; j++)
+        for (var scanIndex = braceIndex; scanIndex < text.Length; scanIndex++)
         {
-            if (text[j] == '{') depth++;
-            else if (text[j] == '}')
+            if (text[scanIndex] == '{') depth++;
+            else if (text[scanIndex] == '}')
             {
                 depth--;
-                if (depth == 0) return text[(i + 1)..j];
+                if (depth == 0) return text[(braceIndex + 1)..scanIndex];
             }
         }
         return null;
@@ -45,7 +46,7 @@ public static class RefsParser
 
     /// Все строковые литералы блока.
     public static IEnumerable<string> Strings(string block) =>
-        Regex.Matches(block, "\"([^\"]+)\"").Select(m => m.Groups[1].Value);
+        Regex.Matches(block, "\"([^\"]+)\"").Select(match => match.Groups[1].Value);
 
     /// Парсит refs.lua в плоский список (секция, владелец, значение).
     /// Секции: Assets, EngineClasses, Hooks(+вложенные), ShortClasses,
@@ -58,8 +59,8 @@ public static class RefsParser
         {
             var block = ExtractBlock(refsText, blockName);
             if (block == null) return;
-            foreach (var s in Strings(block))
-                result.Add(new RefString(section, null, s));
+            foreach (var value in Strings(block))
+                result.Add(new RefString(section, null, value));
         }
 
         AddPlain("Assets", "Refs.Assets");
@@ -70,19 +71,19 @@ public static class RefsParser
 
         var hooks = ExtractBlock(refsText, "Refs.Hooks");
         if (hooks != null)
-            foreach (var s in Strings(hooks))
-                result.Add(new RefString("Hooks", null, s));
+            foreach (var value in Strings(hooks))
+                result.Add(new RefString("Hooks", null, value));
 
         var members = ExtractBlock(refsText, "Refs.Members");
         if (members != null)
         {
-            foreach (Match m in Regex.Matches(members, "(\\w+)\\s*=\\s*\\{"))
+            foreach (Match match in Regex.Matches(members, "(\\w+)\\s*=\\s*\\{"))
             {
-                var owner = m.Groups[1].Value;
+                var owner = match.Groups[1].Value;
                 var ownerBlock = ExtractBlock(members, owner);
                 if (ownerBlock == null) continue;
-                foreach (var s in Strings(ownerBlock))
-                    result.Add(new RefString("Members", owner, s));
+                foreach (var value in Strings(ownerBlock))
+                    result.Add(new RefString("Members", owner, value));
             }
         }
 
@@ -145,15 +146,15 @@ public static class Program
         {
             foreach (var file in Directory.GetFiles(dumpsDir, "*.txt"))
             {
-                var set = new HashSet<string>(StringComparer.Ordinal);
+                var fileNames = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var line in File.ReadAllLines(file))
                 {
                     var name = line.Trim();
                     if (name.Length == 0 || name.StartsWith('#')) continue;
-                    set.Add(name);
+                    fileNames.Add(name);
                     dumpNames.Add(name);
                 }
-                dumpsByOwner[Path.GetFileNameWithoutExtension(file)] = set;
+                dumpsByOwner[Path.GetFileNameWithoutExtension(file)] = fileNames;
             }
         }
 
@@ -167,56 +168,56 @@ public static class Program
             return 2;
         }
 
-        var refs = RefsParser.Parse(File.ReadAllText(refsPath));
-        if (refs.Count == 0)
+        var parsedRefs = RefsParser.Parse(File.ReadAllText(refsPath));
+        if (parsedRefs.Count == 0)
         {
             Console.Error.WriteLine("refs.lua parsed to zero strings - format changed?");
             return 2;
         }
 
-        var ok = 0;
-        var engine = 0;
+        var okCount = 0;
+        var engineCount = 0;
         var unknown = new List<string>();
 
-        foreach (var r in refs)
+        foreach (var refString in parsedRefs)
         {
-            var status = Check(r, assets, dumpNames, dumpsByOwner, objectDump);
+            var status = Check(refString, assets, dumpNames, dumpsByOwner, objectDump);
             switch (status)
             {
-                case "OK": ok++; break;
-                case "ENGINE": engine++; break;
-                default: unknown.Add($"{r.Section}{(r.Owner != null ? "." + r.Owner : "")}: {r.Value}"); break;
+                case "OK": okCount++; break;
+                case "ENGINE": engineCount++; break;
+                default: unknown.Add($"{refString.Section}{(refString.Owner != null ? "." + refString.Owner : "")}: {refString.Value}"); break;
             }
         }
 
         if (!quiet)
         {
-            Console.WriteLine($"refs strings : {refs.Count}");
-            Console.WriteLine($"OK           : {ok}");
-            Console.WriteLine($"ENGINE (w/l) : {engine}");
+            Console.WriteLine($"refs strings : {parsedRefs.Count}");
+            Console.WriteLine($"OK           : {okCount}");
+            Console.WriteLine($"ENGINE (w/l) : {engineCount}");
             Console.WriteLine($"UNKNOWN      : {unknown.Count}");
-            foreach (var u in unknown)
-                Console.WriteLine("  UNKNOWN " + u);
+            foreach (var entry in unknown)
+                Console.WriteLine("  UNKNOWN " + entry);
         }
 
         return unknown.Count == 0 ? 0 : 1;
     }
 
-    private static string Check(RefsParser.RefString r,
+    private static string Check(RefsParser.RefString refString,
         HashSet<string> assets,
         HashSet<string> dumpNames,
         Dictionary<string, HashSet<string>> dumpsByOwner,
         string? objectDump)
     {
-        switch (r.Section)
+        switch (refString.Section)
         {
             case "Assets":
                 // "/Game/Ride/Game/X" -> пакет "Ride/Content/Ride/Game/X.uasset" (или .umap)
             {
-                if (!r.Value.StartsWith("/Game/")) return "UNKNOWN";
-                var tail = r.Value["/Game/".Length..];
-                return assets.Contains("Ride/Content/" + tail + ".uasset")
-                       || assets.Contains("Ride/Content/" + tail + ".umap")
+                if (!refString.Value.StartsWith("/Game/")) return "UNKNOWN";
+                var gameRelativePath = refString.Value["/Game/".Length..];
+                return assets.Contains("Ride/Content/" + gameRelativePath + ".uasset")
+                       || assets.Contains("Ride/Content/" + gameRelativePath + ".umap")
                     ? "OK"
                     : "UNKNOWN";
             }
@@ -225,48 +226,48 @@ public static class Program
             case "Hooks":
                 // "/Script/..." и UFunction-сигнатуры движка: без object-dump
                 // не проверить — whitelist; с object-dump ищем подстроки.
-                if (!r.Value.StartsWith("/Script/")) return "UNKNOWN";
+                if (!refString.Value.StartsWith("/Script/")) return "UNKNOWN";
                 if (objectDump != null)
                 {
-                    var parts = r.Value["/Script/".Length..].Split(':', '.');
-                    var all = parts.All(p => p.Length == 0 || objectDump.Contains(p, StringComparison.Ordinal));
-                    return all ? "OK" : "UNKNOWN";
+                    var parts = refString.Value["/Script/".Length..].Split(':', '.');
+                    var allPartsMatch = parts.All(part => part.Length == 0 || objectDump.Contains(part, StringComparison.Ordinal));
+                    return allPartsMatch ? "OK" : "UNKNOWN";
                 }
                 return "ENGINE";
 
             case "ShortClasses":
             {
-                if (EngineShortClasses.Contains(r.Value)) return "ENGINE";
+                if (EngineShortClasses.Contains(refString.Value)) return "ENGINE";
                 // BP_*_C: базовое имя обязано быть пакетом игры.
-                if (r.Value.EndsWith("_C"))
+                if (refString.Value.EndsWith("_C"))
                 {
-                    var baseName = r.Value[..^2];
-                    var found = assets.Any(a => a.EndsWith("/" + baseName + ".uasset", StringComparison.OrdinalIgnoreCase));
-                    return found || dumpNames.Contains(r.Value) ? "OK" : "UNKNOWN";
+                    var baseName = refString.Value[..^2];
+                    var found = assets.Any(assetPath => assetPath.EndsWith("/" + baseName + ".uasset", StringComparison.OrdinalIgnoreCase));
+                    return found || dumpNames.Contains(refString.Value) ? "OK" : "UNKNOWN";
                 }
-                return dumpNames.Contains(r.Value) ? "OK" : "UNKNOWN";
+                return dumpNames.Contains(refString.Value) ? "OK" : "UNKNOWN";
             }
 
             case "CosmeticTags":
             case "LevelTags":
-                return dumpNames.Contains(r.Value) ? "OK" : "UNKNOWN";
+                return dumpNames.Contains(refString.Value) ? "OK" : "UNKNOWN";
 
             case "Members":
             {
-                var owner = r.Owner ?? "";
+                var owner = refString.Owner ?? "";
                 if (EngineMembers.TryGetValue(owner, out var whitelist))
                 {
-                    if (whitelist.Contains(r.Value))
-                        return objectDump != null && objectDump.Contains(r.Value, StringComparison.Ordinal)
+                    if (whitelist.Contains(refString.Value))
+                        return objectDump != null && objectDump.Contains(refString.Value, StringComparison.Ordinal)
                             ? "OK"
                             : "ENGINE";
                     return "UNKNOWN";
                 }
                 // Игровой владелец: ищем имя в ЕГО дампе (строже), при
                 // отсутствии дампа — в объединении всех.
-                if (dumpsByOwner.TryGetValue(owner, out var ownerSet) && ownerSet.Contains(r.Value))
+                if (dumpsByOwner.TryGetValue(owner, out var ownerSet) && ownerSet.Contains(refString.Value))
                     return "OK";
-                return dumpNames.Contains(r.Value) ? "OK" : "UNKNOWN";
+                return dumpNames.Contains(refString.Value) ? "OK" : "UNKNOWN";
             }
 
             default:

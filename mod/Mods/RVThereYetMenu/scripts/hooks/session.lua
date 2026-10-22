@@ -28,47 +28,47 @@ function Session.GetCurrentCap()
     if ok and type(value) == "number" then return value end
     if ok and value ~= nil then
         -- свойство могло прийти обёрткой RemoteUnrealParam
-        local okGet, raw = pcall(function() return value.get and value:get() or value end)
-        if okGet and type(raw) == "number" then return raw end
+        local unwrapOk, unwrappedValue = pcall(function() return value.get and value:get() or value end)
+        if unwrapOk and type(unwrappedValue) == "number" then return unwrappedValue end
     end
     return nil
 end
 
 --- Применяет кап к сессии + CDO. Возвращает ok, применённое значение.
-function Session.ApplyTo(session, cap)
+function Session.ApplyTo(session, playerCap)
     if not Guard.IsValid(session) then return false end
 
     local original = Session.GetCurrentCap()
-    local okSet, errSet = Guard.Set(session, "MaxPlayers", cap)
-    if not okSet then
-        Log.Fmt("WARN", "MaxPlayers set failed: %s", tostring(errSet))
+    local setOk, setError = Guard.Set(session, "MaxPlayers", playerCap)
+    if not setOk then
+        Log.Fmt("WARN", "MaxPlayers set failed: %s", tostring(setError))
         State.Count("SessionCap", false)
         return false
     end
-    State.Mirror(MIRROR_KEY, cap, original)
-    State.Session.MaxPlayersApplied = cap
+    State.Mirror(MIRROR_KEY, playerCap, original)
+    State.Session.MaxPlayersApplied = playerCap
     State.Session.MaxPlayersOriginal = State.Session.MaxPlayersOriginal or original
     State.Count("SessionCap", true)
-    Log.Fmt("INFO", "Applied MaxPlayers override: %s -> %d", tostring(original or "?"), cap)
+    Log.Fmt("INFO", "Applied MaxPlayers override: %s -> %d", tostring(original or "?"), playerCap)
 
     -- CDO: сессии, созданные ПОСЛЕ патча, наследуют дефолт класса;
     -- приём MoreRVers, снижает риск «кап слетел после загрузки уровня».
-    local cdo = Engine.CDO(Refs.EngineClasses.GameSession)
-    if Guard.IsValid(cdo) then
-        Guard.Set(cdo, "MaxPlayers", cap)
-        Log.Debug("CDO MaxPlayers set to " .. tostring(cap))
+    local sessionCdo = Engine.CDO(Refs.EngineClasses.GameSession)
+    if Guard.IsValid(sessionCdo) then
+        Guard.Set(sessionCdo, "MaxPlayers", playerCap)
+        Log.Debug("CDO MaxPlayers set to " .. tostring(playerCap))
     end
-    return true, cap
+    return true, playerCap
 end
 
 --- Применить к текущей сессии (кнопка «Apply now» / AutoApplySlots).
-function Session.ApplyNow(ctx)
+function Session.ApplyNow(context)
     local session = Engine.GameSession()
     if not session then
         return false, "GameSession not found (host a session first)"
     end
-    local ok = Session.ApplyTo(session, ctx.Config.MaxPlayers)
-    if ok then return true end
+    local applied = Session.ApplyTo(session, context.Config.MaxPlayers)
+    if applied then return true end
     return false, "MaxPlayers set failed"
 end
 
@@ -82,8 +82,8 @@ function Session.Release()
     if not session then
         return false, "GameSession not found"
     end
-    local okSet = Guard.Set(session, "MaxPlayers", mirror.original)
-    if okSet then
+    local setOk = Guard.Set(session, "MaxPlayers", mirror.original)
+    if setOk then
         State.Mirror(MIRROR_KEY, nil, nil)
         State.Mirrors[MIRROR_KEY] = nil
         State.Session.MaxPlayersApplied = nil
@@ -96,53 +96,53 @@ end
 --- Установка хуков при старте мода. Все регистрации в pcall: на части
 --- сборок движка/игры сигнатуры могут отсутствовать — это не фатально,
 --- основной путь (NotifyOnNewObject) уже проверен на этой игре.
-function Session.Install(ctx)
-    local installed = 0
+function Session.Install(context)
+    local installedCount = 0
 
-    local okNotify = pcall(function()
-        NotifyOnNewObject(Refs.Hooks.GameSessionCreated, function(obj)
-            if not ctx.Config.AutoApplySlots then return end
+    local notifyHookOk = pcall(function()
+        NotifyOnNewObject(Refs.Hooks.GameSessionCreated, function(createdSession)
+            if not context.Config.AutoApplySlots then return end
             -- Сессия могла создаться до загрузки config-значений; cap
             -- берём из конфига на момент создания.
-            Session.ApplyTo(obj, ctx.Config.MaxPlayers)
+            Session.ApplyTo(createdSession, context.Config.MaxPlayers)
         end)
     end)
-    if okNotify then
-        installed = installed + 1
+    if notifyHookOk then
+        installedCount = installedCount + 1
         Log.Debug("hook installed: NotifyOnNewObject(GameSession)")
     end
 
-    local okBegin = pcall(function()
-        RegisterHook(Refs.Hooks.GameSessionBeginPlay, function(self)
-            if not ctx.Config.AutoApplySlots then return end
-            Session.ApplyTo(self, ctx.Config.MaxPlayers)
+    local beginPlayHookOk = pcall(function()
+        RegisterHook(Refs.Hooks.GameSessionBeginPlay, function(session)
+            if not context.Config.AutoApplySlots then return end
+            Session.ApplyTo(session, context.Config.MaxPlayers)
         end)
     end)
-    if okBegin then
-        installed = installed + 1
+    if beginPlayHookOk then
+        installedCount = installedCount + 1
         Log.Debug("hook installed: GameSession:ReceiveBeginPlay")
     end
 
     -- Join-gate кандидаты: informational-хуки (логируем отказы сверх капа).
     -- Возврат nil из post-hook не меняет результат оригинала.
-    for _, sig in ipairs(Refs.Hooks.CanPlayerJoin) do
-        local ok = pcall(function()
-            RegisterHook(sig, function()
-                local cap = State.Session.MaxPlayersApplied
-                local current = #((Engine.AllPlayerStates()) or {})
-                if cap and current > cap then
-                    Log.Fmt("WARN", "join beyond cap detected: %d > %d (%s)", current, cap, sig)
+    for _, signature in ipairs(Refs.Hooks.CanPlayerJoin) do
+        local hookOk = pcall(function()
+            RegisterHook(signature, function()
+                local appliedCap = State.Session.MaxPlayersApplied
+                local currentPlayers = #((Engine.AllPlayerStates()) or {})
+                if appliedCap and currentPlayers > appliedCap then
+                    Log.Fmt("WARN", "join beyond cap detected: %d > %d (%s)", currentPlayers, appliedCap, signature)
                 end
             end)
         end)
-        if ok then
-            installed = installed + 1
-            Log.Debug("hook installed: " .. sig)
+        if hookOk then
+            installedCount = installedCount + 1
+            Log.Debug("hook installed: " .. signature)
         end
     end
 
-    Log.Fmt("INFO", "session hooks installed: %d", installed)
-    return installed
+    Log.Fmt("INFO", "session hooks installed: %d", installedCount)
+    return installedCount
 end
 
 return Session

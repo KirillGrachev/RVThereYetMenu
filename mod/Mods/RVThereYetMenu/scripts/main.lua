@@ -22,21 +22,21 @@ local Actions = require("actions")
 local SessionHooks = require("hooks.session")
 
 local ConfigPath = ScriptPath .. "/../config.ini"
-local cfg = Config.Load(ConfigPath)
-Log.Init("RVThereYetMenu", cfg.LogLevel)
-Lang.Load(ScriptPath .. "/../lang/lang.tsv", cfg.Language)
+local config = Config.Load(ConfigPath)
+Log.Init("RVThereYetMenu", config.LogLevel)
+Lang.Load(ScriptPath .. "/../lang/lang.tsv", config.Language)
 
-local ctx = {
+local context = {
     Version = VERSION,
-    Config = cfg,
+    Config = config,
     ConfigPath = ConfigPath,
     LastStatus = "",
-    OnStatus = function(s) MenuUI.SetStatus(s) end,
+    OnStatus = function(statusText) MenuUI.SetStatus(statusText) end,
 }
 
 Actions.RegisterDefaults()
 
-MenuUI.Init(ctx, {
+MenuUI.Init(context, {
     require("tabs.session"),
     require("tabs.unlocks"),
     require("tabs.vehicle"),
@@ -45,12 +45,12 @@ MenuUI.Init(ctx, {
     require("tabs.info"),
 })
 
-SessionHooks.Install(ctx)
+SessionHooks.Install(context)
 
 --- Хоткей меню. Имя клавиши — из config.ini (Key.<NAME> у UE4SS);
 --- неизвестное имя деградирует в INSERT, а не в отсутствие меню.
 do
-    local keyName = tostring(cfg.ToggleKey or "INSERT"):upper()
+    local keyName = tostring(config.ToggleKey or "INSERT"):upper()
     local key = Key and Key[keyName] or nil
     if key == nil then
         Log.Warn("unknown ToggleKey '" .. keyName .. "', falling back to INSERT")
@@ -97,5 +97,5 @@ do
         end
     end)
     Log.Fmt("INFO", "RVThereYetMenu v%s loaded (UE4SS %s, UE %s, lang=%s, hotkey=%s)",
-        VERSION, ue4ssVersion, engineVersion, tostring(cfg.Language), tostring(cfg.ToggleKey))
+        VERSION, ue4ssVersion, engineVersion, tostring(config.Language), tostring(config.ToggleKey))
 end

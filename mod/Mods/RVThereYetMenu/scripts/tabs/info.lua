@@ -8,70 +8,70 @@ local Log = require("core.log")
 local Engine = require("core.engine")
 local Actions = require("actions")
 local Theme = require("menu.theme")
-local W = require("menu.widgets")
+local Widgets = require("menu.widgets")
 
 local Tab = { Id = "info", TitleKey = "tab.info" }
 
-local els = {}
+local ui = {}
 
-local function availabilityLine(label, obj)
-    return string.format("%s: %s", label, obj and "OK" or "--")
+local function availabilityLine(label, object)
+    return string.format("%s: %s", label, object and "OK" or "--")
 end
 
-function Tab.Build(page, ctx)
-    local versions = W.Section(page, Lang.T("info.title.versions"))
-    els.versions = W.TextBlock(versions, "", { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
-    W.AddTo(versions, els.versions)
+function Tab.Build(page, context)
+    local versions = Widgets.Section(page, Lang.T("info.title.versions"))
+    ui.versions = Widgets.TextBlock(versions, "", { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
+    Widgets.AddTo(versions, ui.versions)
 
-    local diag = W.Section(page, Lang.T("info.title.diag"))
-    els.diag = W.TextBlock(diag, "", { size = Theme.Fonts.Small, color = Theme.Colors.NormalText })
-    W.AddTo(diag, els.diag)
+    local diag = Widgets.Section(page, Lang.T("info.title.diag"))
+    ui.diag = Widgets.TextBlock(diag, "", { size = Theme.Fonts.Small, color = Theme.Colors.NormalText })
+    Widgets.AddTo(diag, ui.diag)
 
-    local dumps = W.Section(page, Lang.T("info.title.dumps"))
-    local ids = { "info.dump.objects", "info.dump.sdk", "info.dump.usmap" }
-    for _, id in ipairs(ids) do
-        W.AddTo(dumps, W.Button(dumps, Lang.T(id), function()
-            Actions.Run(ctx, id)
+    local dumps = Widgets.Section(page, Lang.T("info.title.dumps"))
+    local dumpActionIds = { "info.dump.objects", "info.dump.sdk", "info.dump.usmap" }
+    for _, id in ipairs(dumpActionIds) do
+        Widgets.AddTo(dumps, Widgets.Button(dumps, Lang.T(id), function()
+            Actions.Run(context, id)
         end), { Bottom = 3 })
     end
 
-    els.loglevel = W.TextBlock(dumps, "", { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
-    W.AddTo(dumps, els.loglevel, { Top = 4 })
+    ui.loglevel = Widgets.TextBlock(dumps, "", { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
+    Widgets.AddTo(dumps, ui.loglevel, { Top = 4 })
 end
 
-function Tab.Refresh(ctx)
-    if Guard.IsValid(els.versions or nil) then
-        local ue4ss = "?"
+function Tab.Refresh(context)
+    if Guard.IsValid(ui.versions or nil) then
+        local ue4ssVersion = "?"
         pcall(function()
             local major, minor, hotfix = UE4SS.GetVersion()
-            ue4ss = string.format("%d.%d.%d", major or 0, minor or 0, hotfix or 0)
+            ue4ssVersion = string.format("%d.%d.%d", major or 0, minor or 0, hotfix or 0)
         end)
-        local engineVer = "?"
+        local engineVersion = "?"
         pcall(function()
-            engineVer = string.format("%d.%d", UnrealVersion:GetMajor(), UnrealVersion:GetMinor())
+            engineVersion = string.format("%d.%d", UnrealVersion:GetMajor(), UnrealVersion:GetMinor())
         end)
-        els.versions:UpdateText(string.format("%s v%s  |  UE4SS %s  |  UE %s",
-            Lang.T("menu.title"), tostring(ctx.Version), ue4ss, engineVer))
+        ui.versions:UpdateText(string.format("%s v%s  |  UE4SS %s  |  UE %s",
+            Lang.T("menu.title"), tostring(context.Version), ue4ssVersion, engineVersion))
     end
 
-    if Guard.IsValid(els.diag or nil) then
-        local gi = Engine.GameInstance()
+    if Guard.IsValid(ui.diag or nil) then
+        local gameInstance = Engine.GameInstance()
         local session = Engine.GameSession()
         local save = Engine.PlayerSave()
-        local cm = Engine.CheatManager()
+        local cheatManager = Engine.CheatManager()
         local lines = {
-            availabilityLine("GameInstance", gi),
+            availabilityLine("GameInstance", gameInstance),
             availabilityLine("GameSession", session),
             availabilityLine("PlayerSave", save),
-            availabilityLine("CheatManager", cm),
+            availabilityLine("CheatManager", cheatManager),
             "Level: " .. tostring(Engine.LevelName() or "?"),
             "Host: " .. tostring(Engine.IsHost()),
         }
-        els.diag:UpdateText(table.concat(lines, "\n"))
+        ui.diag:UpdateText(table.concat(lines, "\n"))
     end
 
-    if Guard.IsValid(els.loglevel or nil) then
-        els.loglevel:UpdateText(Lang.T("info.loglevel") .. ": " .. Log.GetLevel())
+    if Guard.IsValid(ui.loglevel or nil) then
+        ui.loglevel:UpdateText(Lang.T("info.loglevel") .. ": " .. Log.GetLevel())
     end
 end
 

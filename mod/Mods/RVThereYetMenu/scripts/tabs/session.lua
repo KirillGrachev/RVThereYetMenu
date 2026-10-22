@@ -7,46 +7,46 @@ local Engine = require("core.engine")
 local Session = require("hooks.session")
 local Actions = require("actions")
 local Theme = require("menu.theme")
-local W = require("menu.widgets")
+local Widgets = require("menu.widgets")
 
 local Tab = { Id = "session", TitleKey = "tab.session" }
 
-local els = {}
+local ui = {}
 
-function Tab.Build(page, ctx)
-    local s = W.Section(page, Lang.T("session.title"))
+function Tab.Build(page, context)
+    local section = Widgets.Section(page, Lang.T("session.title"))
 
-    els.slider = W.Slider(s, Lang.T("session.maxplayers"), 1, 24, ctx.Config.MaxPlayers, function(v)
-        ctx.Config.MaxPlayers = v
+    ui.slider = Widgets.Slider(section, Lang.T("session.maxplayers"), 1, 24, context.Config.MaxPlayers, function(newValue)
+        context.Config.MaxPlayers = newValue
         -- Значение переживает перезапуск игры: конфиг пишется сразу.
-        if ctx.ConfigPath then
-            pcall(function() Config.Save(ctx.ConfigPath, ctx.Config) end)
+        if context.ConfigPath then
+            pcall(function() Config.Save(context.ConfigPath, context.Config) end)
         end
     end)
-    W.AddTo(s, els.slider, { Bottom = 6 })
+    Widgets.AddTo(section, ui.slider, { Bottom = 6 })
 
-    els.apply = W.Button(s, Lang.T("session.apply"), function()
-        Actions.Run(ctx, "session.apply")
+    ui.apply = Widgets.Button(section, Lang.T("session.apply"), function()
+        Actions.Run(context, "session.apply")
     end)
-    W.AddTo(s, els.apply, { Bottom = 3 })
+    Widgets.AddTo(section, ui.apply, { Bottom = 3 })
 
-    els.release = W.Button(s, Lang.T("session.release"), function()
-        Actions.Run(ctx, "session.release")
+    ui.release = Widgets.Button(section, Lang.T("session.release"), function()
+        Actions.Run(context, "session.release")
     end)
-    W.AddTo(s, els.release, { Bottom = 6 })
+    Widgets.AddTo(section, ui.release, { Bottom = 6 })
 
-    els.status = W.TextBlock(s, "", { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
-    W.AddTo(s, els.status, { Bottom = 4 })
+    ui.status = Widgets.TextBlock(section, "", { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
+    Widgets.AddTo(section, ui.status, { Bottom = 4 })
 
-    els.note = W.TextBlock(s, Lang.T("session.note"), { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
-    W.AddTo(s, els.note)
+    ui.note = Widgets.TextBlock(section, Lang.T("session.note"), { size = Theme.Fonts.Small, color = Theme.Colors.MutedText })
+    Widgets.AddTo(section, ui.note)
 end
 
 function Tab.Refresh()
-    if not Guard.IsValid(els.status or nil) then return end
+    if not Guard.IsValid(ui.status or nil) then return end
     local parts = {}
-    local cap = Session.GetCurrentCap()
-    parts[#parts + 1] = Lang.T("session.current") .. ": " .. tostring(cap or "?")
+    local currentCap = Session.GetCurrentCap()
+    parts[#parts + 1] = Lang.T("session.current") .. ": " .. tostring(currentCap or "?")
     local players = Engine.AllPlayerStates()
     parts[#parts + 1] = Lang.T("session.players") .. ": " .. tostring(players and #players or "?")
     parts[#parts + 1] = Engine.IsHost() and Lang.T("session.host") or Lang.T("session.client")
@@ -54,7 +54,7 @@ function Tab.Refresh()
     if mirror and mirror.original then
         parts[#parts + 1] = Lang.T("session.original") .. ": " .. tostring(mirror.original)
     end
-    els.status:UpdateText(table.concat(parts, "  |  "))
+    ui.status:UpdateText(table.concat(parts, "  |  "))
 end
 
 return Tab
