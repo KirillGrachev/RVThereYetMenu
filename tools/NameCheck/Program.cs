@@ -263,15 +263,31 @@ public static class Program
                             : "ENGINE";
                     return "UNKNOWN";
                 }
-                // Игровой владелец: ищем имя в ЕГО дампе (строже), при
-                // отсутствии дампа — в объединении всех.
-                if (dumpsByOwner.TryGetValue(owner, out var ownerSet) && ownerSet.Contains(refString.Value))
-                    return "OK";
+                // Игровой владелец: ищем имя в ЕГО дампе (строже объединения).
+                // Дамп владельца существует — значит имя обязано быть в нём,
+                // иначе владелец в refs.lua указан неверно.
+                var ownerDump = FindOwnerDump(dumpsByOwner, owner);
+                if (ownerDump != null)
+                    return ownerDump.Contains(refString.Value) ? "OK" : "UNKNOWN";
+                // Дампа владельца нет вовсе — сверяем с объединением всех дампов.
                 return dumpNames.Contains(refString.Value) ? "OK" : "UNKNOWN";
             }
 
             default:
                 return "UNKNOWN";
         }
+    }
+
+    /// Ищет дамп владельца: сначала точный ключ, затем суффикс "_&lt;owner&gt;"
+    /// на границе подчёркивания. AssetDump именует файлы полным путём пакета
+    /// (Ride_Content_Ride_Game_BP_SaveGamePlayer), а владельцы в refs.lua —
+    /// короткие имена классов, поэтому точный ключ почти никогда не совпадает.
+    public static HashSet<string>? FindOwnerDump(Dictionary<string, HashSet<string>> dumpsByOwner, string owner)
+    {
+        if (owner.Length == 0) return null;
+        if (dumpsByOwner.TryGetValue(owner, out var exact)) return exact;
+        foreach (var (fileName, names) in dumpsByOwner)
+            if (fileName.EndsWith("_" + owner, StringComparison.Ordinal)) return names;
+        return null;
     }
 }
