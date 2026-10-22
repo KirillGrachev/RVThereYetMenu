@@ -1,0 +1,12 @@
+# Package: Ride/Content/Ride/Game/BP_SaveGamePlayer.uasset
+# Names: 8 (fixture)
+# Mode: NAMES
+
+None
+GetUnlockedCosmetics
+AsyncSaveGameToSlotForLocalPlayer
+Cosmetic.Hat
+Level.JungleLevel
+BP_SaveGamePlayer_C
+DefaultUnlockedCosmetics
+CheckpointIndex
