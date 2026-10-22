@@ -49,10 +49,21 @@ function Lang.Load(path, lang)
 end
 
 --- Перевод по ключу. Вторым аргументом можно передать параметры format.
+--- Пустая строка в активном языке считается отсутствием перевода и
+--- деградирует в fallback-язык (в Lua "" truthy — проверяем явно).
 function Lang.T(key, ...)
     local entry = table_[key]
-    local text = entry and (entry[language] or entry[fallback]) or nil
-    if text == nil or text == "" then text = key end
+    local text = nil
+    if entry then
+        text = entry[language]
+        if text == nil or text == "" then
+            text = entry[fallback]
+        end
+        if text == "" then
+            text = nil
+        end
+    end
+    if text == nil then text = key end
     if select("#", ...) > 0 then
         local ok, formatted = pcall(string.format, text, ...)
         if ok then return formatted end
