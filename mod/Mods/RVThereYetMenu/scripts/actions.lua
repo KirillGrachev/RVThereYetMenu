@@ -70,10 +70,8 @@ function Actions.Run(ctx, id)
     end)
 end
 
--- ---------------------------------------------------------------------------
--- Регистрация действий. Вынесена в функцию, чтобы тесты могли зарегистрировать
--- действия на «голом» реестре без игрового окружения.
--- ---------------------------------------------------------------------------
+--- Регистрация действий. Вынесена в функцию, чтобы тесты могли зарегистрировать
+--- действия на «голом» реестре без игрового окружения.
 
 local function cheatAvailable()
     return Cheats.IsAvailable()
@@ -93,7 +91,7 @@ local function cheatAction(id, cheatName, labelKey, section, dangerous)
 end
 
 function Actions.RegisterDefaults()
-    -- Session ---------------------------------------------------------------
+    --- Сессия: применить и снять кап слотов.
     Actions.Register("session.apply", {
         labelKey = "session.apply",
         section = "session",
@@ -111,7 +109,7 @@ function Actions.RegisterDefaults()
         end,
     })
 
-    -- Unlocks ---------------------------------------------------------------
+    --- Анлоки: косметика, кассеты, прогресс чекпоинтов.
     Actions.Register("unlocks.cosmetics", {
         labelKey = "unlocks.cosmetics",
         section = "unlocks",
@@ -138,7 +136,7 @@ function Actions.RegisterDefaults()
         end,
     })
 
-    -- Vehicle -----------------------------------------------------------------
+    --- Транспорт: ремонт, посадка, лебёдка, шипы (обёртки чит-менеджера).
     cheatAction("vehicle.repair.all", "RepairDamage", "vehicle.repair.all", "vehicle")
     cheatAction("vehicle.repair.engine", "RepairEngineDamage", "vehicle.repair.engine", "vehicle")
     cheatAction("vehicle.repair.frame", "RepairFrameDamage", "vehicle.repair.frame", "vehicle")
@@ -152,7 +150,7 @@ function Actions.RegisterDefaults()
     cheatAction("vehicle.studs.add", "AddIceStudsToAllWheels", "vehicle.studs.add", "vehicle")
     cheatAction("vehicle.studs.wear", "Cheat_WearDownIceStuds", "vehicle.studs.wear", "vehicle")
 
-    -- Run (телепорты/чекпоинты/гольф) ----------------------------------------
+    --- Заезд: телепорты, чекпоинты, гольф, waypoint-слоты.
     Actions.Register("run.tp.checkpoint", {
         labelKey = "run.tp.checkpoint",
         section = "run",
@@ -212,9 +210,9 @@ function Actions.RegisterDefaults()
         end,
     })
 
-    -- Waypoints: три слота, помнят уровень (договорённость RiskOfRainMenu —
-    -- точка, сохранённая на другой карте, не применяется: иначе игрок
-    -- улетает в void).
+    --- Waypoints: три слота, помнят уровень (договорённость RiskOfRainMenu —
+    --- точка, сохранённая на другой карте, не применяется: иначе игрок
+    --- улетает в void).
     for slot = 1, 3 do
         Actions.Register("run.wp.save." .. slot, {
             labelKey = "run.wp.save",
@@ -256,7 +254,7 @@ function Actions.RegisterDefaults()
         })
     end
 
-    -- Players -----------------------------------------------------------------
+    --- Игроки: выдача EpiPen, очистка сессии, dev-читы.
     cheatAction("players.epipens", "GiveEpiPens", "players.epipens", "players")
     cheatAction("players.removeinactive", "RemoveInactivePlayers", "players.removeinactive", "players")
     cheatAction("players.damageall", "DamageAllPlayers", "players.damageall", "players", true)
@@ -270,7 +268,7 @@ function Actions.RegisterDefaults()
         end,
     })
 
-    -- Info / диагностика -------------------------------------------------------
+    --- Info: дампы UE4SS (объекты, CXX-заголовки, usmap).
     Actions.Register("info.dump.objects", {
         labelKey = "info.dump.objects",
         section = "info",

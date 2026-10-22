@@ -32,9 +32,7 @@ local function truthy(value, msg)
     if not value then error((msg or "truthy") .. ": got " .. tostring(value), 2) end
 end
 
--- ---------------------------------------------------------------------------
--- Config
--- ---------------------------------------------------------------------------
+--- Config: парсинг секций, клампы, bool-слова, дефолты, save/load roundtrip.
 
 local Config = require("core.config")
 
@@ -94,9 +92,7 @@ test("config: missing file degrades to defaults", function()
     eq(cfg.MaxPlayers, Config.DEFAULTS.Session.MaxPlayers, "default cap")
 end)
 
--- ---------------------------------------------------------------------------
--- Lang
--- ---------------------------------------------------------------------------
+--- Lang: перевод, деградация пустой строки в fallback, format-аргументы.
 
 local Lang = require("core.lang")
 
@@ -123,9 +119,7 @@ test("lang: load tsv, translate, fallback, format", function()
     os.remove(path)
 end)
 
--- ---------------------------------------------------------------------------
--- State
--- ---------------------------------------------------------------------------
+--- State: флаги, original-зеркала, метрики ok/fail.
 
 local State = require("core.state")
 
@@ -156,9 +150,7 @@ test("state: metrics counters", function()
     eq(State.Metrics.X.fail, 1, "fail count")
 end)
 
--- ---------------------------------------------------------------------------
--- Refs
--- ---------------------------------------------------------------------------
+--- Refs: форма данных - /Game/-пути, идентификаторы, префиксы тегов.
 
 local Refs = require("core.refs")
 
@@ -190,9 +182,7 @@ test("refs: cosmetic/level tags", function()
     end
 end)
 
--- ---------------------------------------------------------------------------
--- Actions: реестр и переводы
--- ---------------------------------------------------------------------------
+--- Actions: полнота реестра, labelKey/вкладки в lang.tsv, dangerous-флаги.
 
 truthy(Lang.Load(MOD .. "/lang/lang.tsv", "ru"), "real lang.tsv loads")
 local Actions = require("actions")

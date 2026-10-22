@@ -62,36 +62,39 @@ function W.SetVisible(widget, visible)
     widget.Visibility = visible and Theme.Visibility.SelfHitTestInvisible or Theme.Visibility.Collapsed
 end
 
--- ---------------------------------------------------------------------------
--- Контейнеры
--- ---------------------------------------------------------------------------
-
+--- Canvas-панель: корень дерева виджетов, дети размещаются слотами с якорями.
 function W.Canvas(outer) return W.New("/Script/UMG.CanvasPanel", outer) end
 
+--- Вертикальный бокс; поле Add у возвращённого виджета добавляет ребёнка.
 function W.VBox(outer)
     local box = W.New("/Script/UMG.VerticalBox", outer)
     box.Add = function(_, child) return box:AddChildToVerticalBox(child) end
     return box
 end
 
+--- Горизонтальный бокс; поле Add у возвращённого виджета добавляет ребёнка.
 function W.HBox(outer)
     local box = W.New("/Script/UMG.HorizontalBox", outer)
     box.Add = function(_, child) return box:AddChildToHorizontalBox(child) end
     return box
 end
 
+--- Прокручиваемый контейнер для длинных вкладок.
 function W.ScrollBox(outer)
     local sb = W.New("/Script/UMG.ScrollBox", outer)
     sb.Add = function(_, child) return sb:AddChild(child) end
     return sb
 end
 
+--- Переключатель страниц: по странице на вкладку меню.
 function W.Switcher(outer) return W.New("/Script/UMG.WidgetSwitcher", outer) end
 
+--- Бордер: фон и паддинги окна/секций.
 function W.Border(outer)
     return W.New("/Script/UMG.Border", outer)
 end
 
+--- Бокс фиксированного размера (габариты окна меню).
 function W.SizeBox(outer)
     return W.New("/Script/UMG.SizeBox", outer)
 end
@@ -132,10 +135,7 @@ function W.AddToCanvas(canvas, child, opts)
     return slot
 end
 
--- ---------------------------------------------------------------------------
--- Примитивы
--- ---------------------------------------------------------------------------
-
+--- Текстовый блок; поле UpdateText меняет текст без пересборки дерева.
 function W.TextBlock(outer, text, opts)
     opts = opts or {}
     local tb = W.New("/Script/UMG.TextBlock", outer)

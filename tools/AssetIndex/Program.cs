@@ -43,12 +43,12 @@ File.WriteAllLines(outFile, ordered);
 Console.WriteLine($"Written: {outFile}");
 
 Console.WriteLine();
-Console.WriteLine("=== By extension ===");
+Console.WriteLine("By extension:");
 foreach (var g in ordered.GroupBy(p => Path.GetExtension(p)).OrderByDescending(g => g.Count()))
     Console.WriteLine($"{g.Key,-12} {g.Count()}");
 
 Console.WriteLine();
-Console.WriteLine("=== Top-level dirs ===");
+Console.WriteLine("Top-level directories:");
 foreach (var g in ordered.GroupBy(p => "/" + string.Join("/", p.Split('/').Take(3)))
              .OrderByDescending(g => g.Count())
              .Take(25))
