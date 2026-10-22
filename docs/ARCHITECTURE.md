@@ -1,104 +1,115 @@
-# Архитектура RVThereYetMenu
+# RVThereYetMenu architecture
 
-Трейнер для **RV There Yet?** (Unreal Engine 5.6, Shipping, IoStore,
-мультиплеер EOS+Steam). Платформа моддинга — **UE4SS** (Lua): та же,
-на которой мод MoreRVers проверенно поднимает кап игроков этой игры.
+A trainer for **RV There Yet?** (Unreal Engine 5.6, Shipping, IoStore,
+EOS+Steam multiplayer). The modding platform is **UE4SS** (Lua) - the same
+one on which MoreRVers verifiably raises this game's player cap.
 
-Архитектурно проект повторяет договорённости RiskOfRainMenu
-(RoR2SandboxMenu), перенесённые с BepInEx/Harmony на UE4SS/UMG:
+The project follows the conventions of RiskOfRainMenu (RoR2SandboxMenu),
+ported from BepInEx/Harmony to UE4SS/UMG:
 
-| RiskOfRainMenu (Unity)          | RVThereYetMenu (UE5)                  |
-|---------------------------------|----------------------------------------|
-| BepInEx plugin, IMGUI           | UE4SS Lua mod, UMG из чистого Lua      |
-| Harmony-патчи                   | RegisterHook / NotifyOnNewObject       |
-| GameApi (обёртки рефлексии)     | `core/engine.lua` + `core/guard.lua`   |
-| GameRefs + GameRefsTests        | `core/refs.lua` + `tools/NameCheck`    |
-| CheatState / CheatFlag          | `core/state.lua`                       |
-| SandboxActions (диспетчер)      | `actions.lua` (реестр id → run)        |
-| MenuUI / Theme / Widgets / Tabs | `menu/` + `tabs/` (UMG-виджеты)        |
-| Protocol (client → host)        | не нужен в v0.1: действия хоста и так  |
-|                                 | серверные; клиентские — локальные      |
-| lang.tsv                        | `lang/lang.tsv` (тот же формат)        |
+| RiskOfRainMenu (Unity)      | RVThereYetMenu (UE5)               |
+|-----------------------------|------------------------------------|
+| BepInEx plugin, IMGUI       | UE4SS Lua mod, UMG built from pure Lua |
+| Harmony patches             | RegisterHook / NotifyOnNewObject   |
+| GameApi (reflection wrappers) | `core/engine.lua` + `core/guard.lua` |
+| GameRefs + GameRefsTests    | `core/refs.lua` + `tools/NameCheck` |
+| CheatState / CheatFlag      | `core/state.lua`                   |
+| SandboxActions (dispatcher) | `actions.lua` (registry id -> run) |
+| MenuUI / Theme / Widgets / Tabs | `menu/` + `tabs/` (UMG widgets) |
+| Protocol (client -> host)   | not needed in v0.1: host actions   |
+|                             | are server-side anyway; client     |
+|                             | actions are local                  |
+| lang.tsv                    | `lang/lang.tsv` (same format)      |
 
-## Слои
+## Layers
 
 ```
-main.lua                тонкий вход: конфиг, lang, хоткей, LoadMap-хук
-actions.lua             диспетчер: id -> действие (game thread, статус)
-tabs/*.lua              вкладки меню: Build/Refresh, только UI
-menu/menuui.lua         окно: сборка UMG, вкладки, курсор, рефреш-цикл
-menu/widgets.lua        фабрика виджетов (StaticConstructObject + WidgetTree)
-menu/theme.lua          цвета/шрифты/видимость
-hooks/session.lua       слоты: MaxPlayers на экземпляре + CDO, хуки
-hooks/unlocks.lua       косметика/кассеты/чекпоинты + сохранение в слот
-hooks/cheats.lua        обёртка BP_CheatManager
-core/engine.lua         доступ к объектам (GameInstance, GameSession, ...)
-core/guard.lua          ApiGuard: pcall-обёртки, антифлуд ошибок
-core/state.lua          CheatState: флаги, зеркала (applied/original), метрики
-core/refs.lua           ВСЕ reflection-строки (данные, не код)
+main.lua                thin entry: config, lang, hotkey, LoadMap hook
+actions.lua             dispatcher: id -> action (game thread, status)
+tabs/*.lua              menu tabs: Build/Refresh, UI only
+menu/menuui.lua         window: UMG assembly, tabs, cursor, refresh loop
+menu/widgets.lua        widget factory (StaticConstructObject + WidgetTree)
+menu/theme.lua          colors/fonts/visibility
+hooks/session.lua       slots: MaxPlayers on instance + CDO, hooks
+hooks/unlocks.lua       cosmetics/tapes/checkpoints + save-to-slot
+hooks/cheats.lua        BP_CheatManager wrapper
+core/engine.lua         object access (GameInstance, GameSession, ...)
+core/guard.lua          ApiGuard: pcall wrappers, error anti-flood
+core/state.lua          CheatState: flags, mirrors (applied/original), metrics
+core/refs.lua           ALL reflection strings (data, not code)
 core/config.lua         INI: parse/normalize/clamp/save
-core/lang.lua           lang.tsv: перевод с деградацией en -> key
-core/log.lua            уровни, префикс, английский текст сообщений
+core/lang.lua           lang.tsv: translation with en -> key degradation
+core/log.lua            levels, prefix, English message text
 ```
 
-Правила слоёв (контракты):
+Layer rules (contracts):
 
-1. **К игре — только через Guard.** Любой reflection-вызов может упасть
-   (патч игры, клиент без сессии, фронтенд без GameSession); падение в
-   game thread уронит игру пользователю.
-2. **Имена — только из refs.lua.** Никаких строковых reflection-путей в
-   других модулях: NameCheck валидирует один файл, а не весь код.
-3. **Меню не трогает игру напрямую.** Кнопки вызывают `Actions.Run(id)`,
-   который уходит в `ExecuteInGameThread` и пишет единый статус.
-4. **Значения клампятся на входе** (Config), а не в точках применения.
-5. **Оригинал запоминается один раз** (State.Mirror): Release честно
-   возвращает то, что было до первого применения.
+1. **Game access only through Guard.** Any reflection call can throw (a
+   game patch, a client without a session, the frontend without a
+   GameSession); an exception in the game thread takes the user's game
+   down with it.
+2. **Names only from refs.lua.** No string reflection paths in other
+   modules: NameCheck validates one file instead of the whole codebase.
+3. **The menu never touches the game directly.** Buttons call
+   `Actions.Run(id)`, which moves into `ExecuteInGameThread` and writes a
+   single status line.
+4. **Values are clamped at the entrance** (Config), not at the points of
+   use.
+5. **The original value is remembered once** (State.Mirror): Release
+   honestly restores what existed before the first application.
 
-## Модель мультиплеера
+## Multiplayer model
 
-Игра — listen-сервер (хост + клиенты, EOS/Steam). Как и MoreRVers:
-кап слотов и разблокировки применяются **на хосте**; клиентам мод не
-нужен. Клиентские действия (waypoint-телепорты своего пешки, UI) —
-локальные. Полноценный client→host протокол (как NetProtocol в RoR)
-в v0.1 не переносился: для UE-сессии действия гостей можно добавить
-позже через серверные RPC игровых классов (материал появится после
-CXX-дампов).
+The game is a listen server (host + clients, EOS/Steam). As in MoreRVers:
+the slot cap and the unlocks apply **on the host**; clients do not need
+the mod. Client-side actions (waypoint teleports of the own pawn, UI) are
+local. A full client->host protocol (like NetProtocol in RoR) was not
+ported in v0.1: for a UE session, guest-initiated actions can be added
+later through server RPCs of the game classes (the material appears after
+the CXX dumps).
 
-## Валидация имён (GameRefsTests-эквивалент)
+## Name validation (the GameRefsTests equivalent)
 
-Конвейер офлайн-реверса без запуска игры (все инструменты — C#/.NET 10,
-работают на Linux-сервере):
+The offline reverse-engineering pipeline, no game launch required (all
+tools are C#/.NET 10 and run on a Linux server):
 
 ```
 Ride-Windows.utoc/.ucas
-   → tools/AssetIndex  → assets.txt (19101 пакет; CUE4Parse, Mount())
-   → tools/AssetDump   → dumps/*.txt (name batch из Zen-заголовка:
-                          LoadNameBatch@60, не требует .usmap)
+   -> tools/AssetIndex  -> assets.txt (19101 packages; CUE4Parse, Mount())
+   -> tools/AssetDump   -> dumps/*.txt (name batch from the Zen header:
+                          LoadNameBatch@60, no .usmap needed)
 scripts/core/refs.lua + assets.txt + dumps/
-   → tools/NameCheck   → OK / ENGINE(whitelist) / UNKNOWN (exit 1)
+   -> tools/NameCheck   -> OK / ENGINE (whitelist) / UNKNOWN (exit 1)
 ```
 
-После того как автор прогонит игру с UE4SS (вкладка Info → Dump objects /
+NameCheck resolves each refs.lua string against its own source: assets
+against the mounted package list, members of game owners against **their
+owner's** dump (dump files are named by full package path, so the owner is
+matched by the `_Owner` suffix; a wrong attribution is UNKNOWN, not a
+lucky union hit), engine names against an explicit whitelist until an
+object dump exists.
+
+Once the maintainer runs the game with UE4SS (Info tab -> Dump objects /
 Dump CXX headers / Dump .usmap):
-- `Mappings.usmap` включает FULL-режим AssetDump (свойства со значениями);
-- `UE4SS_ObjectDump.txt` снимает ENGINE-whitelist (проверка движковых
-  имён: GameSession.MaxPlayers, PlayerController.* и т.д.).
+- `Mappings.usmap` enables AssetDump FULL mode (properties with values);
+- `UE4SS_ObjectDump.txt` retires the ENGINE whitelist (engine names such
+  as GameSession.MaxPlayers and PlayerController.* get checked for real).
 
-## Тесты
+## Tests
 
-- `tests/lua/run_tests.lua` — чистая логика без UE4SS: config (parse/
-  clamp/roundtrip/дефолты), lang (перевод/деградация/format), state
-  (флаги/original-зеркала/метрики), refs (форма данных), actions
-  (полнота реестра, labelKey ↔ lang.tsv, dangerous-флаги).
-- `tests/NameCheck.Tests` — xunit: парсер секций refs.lua (вложенные
-  блоки, владельцы Members).
-- `tests/fixtures` — сквозной прогон NameCheck в CI (синтетические
-  assets/dumps тех же форматов).
-- luacheck (`.luacheckrc`) — глобалы UE4SS объявлены явно.
+- `tests/lua/run_tests.lua` - pure logic without UE4SS: config (parse/
+  clamp/roundtrip/defaults), lang (translation/degradation/format), state
+  (flags/original mirrors/metrics), refs (data shape), actions (registry
+  completeness, labelKey <-> lang.tsv, dangerous flags).
+- `tests/NameCheck.Tests` - xunit: the refs.lua section parser (nested
+  blocks, Members owners) and the owner-dump suffix matching.
+- `tests/fixtures` - an end-to-end NameCheck run in CI (synthetic
+  assets/dumps of the same formats, tracked in the repository).
+- luacheck (`.luacheckrc`) - UE4SS globals declared explicitly.
 
-## Сборка релиза
+## Release build
 
-CI на теге релиза пакует `mod/` в `RVThereYetMenu-vX.Y.Z-ModOnly.zip`
-(структура как у MoreRVers: Mods/RVThereYetMenu + UE4SS_Signatures).
-UE4SS в релиз не кладём — у пользователя он уже стоит (или ставится
-из RVTY-DumpKit / релизов UE4SS).
+On a release tag, CI packs `mod/` into
+`RVThereYetMenu-vX.Y.Z-ModOnly.zip` (the MoreRVers layout:
+Mods/RVThereYetMenu + UE4SS_Signatures). UE4SS itself is not bundled -
+the user either has it already or installs it once (see INSTALL.md).
