@@ -1,0 +1,67 @@
+key	ru	en
+menu.title	RV There Yet Menu	RV There Yet Menu
+menu.ready	Готов. Действия — на вкладках.	Ready. Use the tabs.
+tab.session	Сессия	Session
+tab.unlocks	Анлоки	Unlocks
+tab.vehicle	Транспорт	Vehicle
+tab.run	Заезд	Run
+tab.players	Игроки	Players
+tab.info	Инфо	Info
+session.title	Слоты сессии	Session slots
+session.maxplayers	Максимум игроков	Max players
+session.apply	Применить	Apply now
+session.release	Вернуть как было	Release (restore)
+session.note	Только для хоста: клиентам мод не нужен. Кап применяется к GameSession и её CDO; часть игровых UI (лобби) может продолжать рисовать 4 слота.	Host-only: clients do not need the mod. The cap is applied to GameSession and its CDO; some game UI (lobby) may still render 4 slots.
+session.current	текущий	current
+session.players	игроков	players
+session.host	хост	host
+session.client	клиент	client
+session.original	исходный	original
+unlocks.title	Косметика и коллекционки	Cosmetics & collectibles
+unlocks.cosmetics	Открыть всю косметику	Unlock all cosmetics
+unlocks.tapes	Собрать все кассеты	Add all tapes
+unlocks.checkpoint	Зафиксировать чекпоинт	Save checkpoint progression
+unlocks.note	Выдача идёт штатными dev-функциями игры и сразу сохраняется в слот. Достижения при этом НЕ выдаются (функции так и называются: WithoutUnlockingAchievement).	Uses the game's own dev functions and saves to the slot immediately. Achievements are NOT granted (the functions are named WithoutUnlockingAchievement).
+unlocks.counts.cosmetics	Косметика в сейве	Cosmetics in save
+unlocks.counts.tapes	Кассеты (Jungle)	Tapes (Jungle)
+vehicle.title.repair	Ремонт	Repair
+vehicle.repair.all	Починить всё	Repair all
+vehicle.repair.engine	Двигатель	Engine
+vehicle.repair.frame	Рама	Frame
+vehicle.repair.wheels	Колёса	Wheels
+vehicle.title.drive	Посадка	Drive
+vehicle.drive.winnebago	За руль Winnebago	Drive Winnebago
+vehicle.drive.jetski	На ближайший гидроцикл	Drive closest JetSki
+vehicle.title.winch	Лебёдка	Winch
+vehicle.winch.grab	Захватить трос	Grab winch
+vehicle.winch.grab.rear	Захватить задний трос	Grab rear winch
+vehicle.winch.reset	Сбросить и захватить	Reset & grab
+vehicle.winch.reset.rear	Сбросить задний	Reset & grab rear
+vehicle.title.studs	Шипы	Ice studs
+vehicle.studs.add	Шипы на все колёса	Ice studs on all wheels
+vehicle.studs.wear	Износить шипы	Wear down ice studs
+run.title.tp	Телепорты	Teleports
+run.tp.checkpoint	К ближайшему чекпоинту	To nearest checkpoint
+run.tp.playerstart	На старт уровня	To player start
+run.title.golf	Гольф	Golf
+run.golf.balltoaim	Мяч к точке прицела	Ball to aim location
+run.title.wp	Точки маршрута (помнят уровень)	Waypoints (level-aware)
+run.wp.slot	Слот %d	Slot %d
+run.wp.save	Сохранить	Save
+run.wp.apply	Переместиться	Apply
+players.title.list	Игроки сессии	Session players
+players.empty	В сессии никого нет	Session is empty
+players.title.actions	Действия	Actions
+players.epipens	Выдать EpiPen'ы	Give EpiPens
+players.removeinactive	Убрать неактивных	Remove inactive players
+players.ignoreattached	Не сталкивать прикреплённых	Ignore actors with attached players
+players.title.dev	Для разработчика (ломает сессию)	Developer (session-breaking)
+players.damageall	Урон всем игрокам	Damage all players
+players.confirm	Точно? Кликните ещё раз	Sure? Click again
+info.title.versions	Версии	Versions
+info.title.diag	Диагностика	Diagnostics
+info.title.dumps	Дампы (пишутся в папку ue4ss/)	Dumps (written to ue4ss/)
+info.dump.objects	Дамп объектов (ObjectDump)	Dump objects (ObjectDump)
+info.dump.sdk	Дамп CXX-заголовков	Dump CXX headers (SDK)
+info.dump.usmap	Дамп .usmap (маппинги)	Dump .usmap (mappings)
+info.loglevel	Уровень логов	Log level
