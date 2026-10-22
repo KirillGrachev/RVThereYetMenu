@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    NameCheck - валидатор reflection-имён мода (аналог GameRefsTests из
+    RiskOfRainMenu). Консольный инструмент без внешних зависимостей:
+    парсит scripts/core/refs.lua и сверяет имена с офлайн-данными игры
+    (assets.txt от AssetIndex, name-batch дампы от AssetDump, опционально
+    UE4SS ObjectDump).
+
+    Запуск (данные игры не входят в репозиторий):
+      dotnet run -c Release, аргументы: refs (путь к refs.lua),
+      assets (assets.txt от AssetIndex), dumps (каталог дампов AssetDump).
+      Флаги описаны в Program.cs.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>NameCheck</AssemblyName>
+    <RootNamespace>NameCheck</RootNamespace>
+  </PropertyGroup>
+
+</Project>

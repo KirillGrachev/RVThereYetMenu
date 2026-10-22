@@ -1,0 +1,3 @@
+Ride/Content/Ride/Game/BP_SaveGamePlayer.uasset
+Ride/Content/Ride/Game/BP_SaveGamePlayer.ubulk
+Ride/Content/Ride/Cheats/BP_CheatManager.uasset

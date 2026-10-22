@@ -73,7 +73,7 @@ function Session.ApplyNow(ctx)
 end
 
 --- Вернуть исходный кап (если он запомнен).
-function Session.Release(ctx)
+function Session.Release()
     local mirror = State.GetMirror(MIRROR_KEY)
     if not mirror or mirror.original == nil then
         return false, "nothing to release"

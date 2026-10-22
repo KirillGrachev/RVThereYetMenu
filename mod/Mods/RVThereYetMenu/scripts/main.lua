@@ -17,7 +17,6 @@ Log.Init("RVThereYetMenu")
 
 local Config = require("core.config")
 local Lang = require("core.lang")
-local Guard = require("core.guard")
 local MenuUI = require("menu.menuui")
 local Actions = require("actions")
 local SessionHooks = require("hooks.session")

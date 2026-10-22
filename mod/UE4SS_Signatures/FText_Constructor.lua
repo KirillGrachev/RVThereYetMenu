@@ -1,3 +1,4 @@
+-- luacheck: globals Register OnMatchFound
 -- FText constructor signature for UE 5.4+ (RV There Yet? runs UE 5.6).
 --
 -- Без этой сигнатуры FText(...) в Lua падает, и весь текст UMG-виджетов
