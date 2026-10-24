@@ -47,31 +47,63 @@ MenuUI.Init(context, {
 
 SessionHooks.Install(context)
 
---- Хоткей меню. Имя клавиши — из config.ini (Key.<NAME> у UE4SS);
---- неизвестное имя деградирует в INSERT, а не в отсутствие меню.
-do
+--- Хоткей меню. Имя клавиши берётся из config.ini в привычных UE-именах
+--- (INSERT, DELETE, ENTER), а таблица Key у UE4SS названа по VK-кодам
+--- (INS, DEL, RETURN) — имена прогоняются через таблицу алиасов.
+--- Неизвестное имя деградирует в INS, а не в отсутствие меню.
+local KEY_ALIASES = {
+    INSERT = "INS",
+    DELETE = "DEL",
+    ENTER = "RETURN",
+    ESC = "ESCAPE",
+}
+
+local function registerMenuHotkey()
     local keyName = tostring(config.ToggleKey or "INSERT"):upper()
-    local key = Key and Key[keyName] or nil
-    if key == nil then
-        Log.Warn("unknown ToggleKey '" .. keyName .. "', falling back to INSERT")
-        key = Key and Key.INSERT or nil
+    local resolvedName = KEY_ALIASES[keyName] or keyName
+    local key = Key and Key[resolvedName] or nil
+    if key == nil and resolvedName ~= KEY_ALIASES.INSERT then
+        Log.Warn("unknown ToggleKey '" .. keyName .. "', falling back to INS")
+        resolvedName = KEY_ALIASES.INSERT
+        key = Key and Key[resolvedName] or nil
     end
-    if key ~= nil then
-        local ok, err = pcall(function()
-            RegisterKeyBind(key, function()
-                ExecuteInGameThread(function()
-                    MenuUI.Toggle()
-                end)
+    if key == nil then
+        if Key == nil then
+            Log.Error("Key table unavailable - menu hotkey NOT registered")
+        else
+            Log.Error("no Key entry for '" .. keyName .. "' (nor INS) - menu hotkey NOT registered")
+        end
+        return false
+    end
+    local ok, err = pcall(function()
+        RegisterKeyBind(key, function()
+            ExecuteInGameThread(function()
+                MenuUI.Toggle()
             end)
         end)
-        if ok then
-            Log.Info("menu hotkey registered: " .. keyName)
-        else
-            Log.Error("RegisterKeyBind failed: " .. tostring(err))
-        end
-    else
-        Log.Error("Key table unavailable - menu hotkey NOT registered")
+    end)
+    if not ok then
+        Log.Error("RegisterKeyBind failed: " .. tostring(err))
+        return false
     end
+    Log.Info("menu hotkey registered: " .. resolvedName)
+    return true
+end
+
+if Key == nil then
+    -- Таблица Key появляется вместе с инициализацией ввода: лучше подождать
+    -- пару секунд через LoopAsync, чем остаться вообще без меню.
+    local attempts = 0
+    LoopAsync(1000, function()
+        attempts = attempts + 1
+        if Key ~= nil then
+            registerMenuHotkey()
+            return true
+        end
+        return attempts >= 10
+    end)
+else
+    registerMenuHotkey()
 end
 
 --- Смена уровня: дерево виджетов и объекты мира пересоздаются —
