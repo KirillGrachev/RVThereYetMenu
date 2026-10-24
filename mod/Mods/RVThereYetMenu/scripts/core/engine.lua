@@ -34,7 +34,11 @@ function Engine.PlayerController()
                 local playerEntry = localPlayers[1]
                 if playerEntry then
                     local localPlayer = playerEntry.get and playerEntry:get() or playerEntry
-                    return localPlayer.PlayerController
+                    -- Обёртка может держать nullptr (фронтенд без контроллера):
+                    -- без проверки валидности чтение свойства бросает исключение.
+                    if Guard.IsValid(localPlayer) then
+                        return localPlayer.PlayerController
+                    end
                 end
             end
             return nil
@@ -164,7 +168,9 @@ end
 function Engine.CDO(classPath)
     local ok, result = Guard.Try("CDO(" .. classPath .. ")", function()
         local classObject = StaticFindObject(classPath)
-        if classObject == nil then return nil end
+        -- StaticFindObject может вернуть обёртку над nullptr для ещё не
+        -- загруженного класса: GetDefaultObject на ней бросает исключение.
+        if classObject == nil or not Guard.IsValid(classObject) then return nil end
         if classObject.GetDefaultObject then return classObject:GetDefaultObject() end
         return nil
     end)
