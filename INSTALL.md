@@ -12,13 +12,28 @@ only the host of a session needs it.
   to work with this game; any `experimental-latest` release is fine);
 - Windows 10/11 x64.
 
+## Which archive goes where
+
+| Archive | Extract into | What appears |
+|---|---|---|
+| UE4SS (official release or the DumpKit bundle) | `Win64\` | `dwmapi.dll` at the root plus the `ue4ss\` folder with everything else |
+| `RVThereYetMenu-*-ModOnly.zip` | `Win64\ue4ss\` | `ue4ss\Mods\RVThereYetMenu\` and `ue4ss\UE4SS_Signatures\FText_Constructor.lua` |
+
+The proxy `dwmapi.dll` is the only UE4SS file that lives directly in
+`Win64\`; the loader, the settings, `Mods\` and `UE4SS_Signatures\` sit in
+the `ue4ss\` subfolder next to it. If `UE4SS.dll` or a `Mods` folder end up
+directly in `Win64\`, the proxy never finds its loader: the game starts
+without UE4SS and every mod silently does nothing - that flat layout is
+the first thing to check when "nothing happens".
+
 ## Step 1. UE4SS
 
-Unpack UE4SS into the game folder if it is not installed yet:
+Extract the UE4SS archive into the game folder if it is not installed
+yet; the result looks like:
 
 ```
 <Steam>\steamapps\common\Ride\Ride\Binaries\Win64\
-    dwmapi.dll            <- proxy loader
+    dwmapi.dll            <- proxy loader, the only file at this level
     ue4ss\
         UE4SS.dll
         UE4SS-settings.ini
@@ -31,8 +46,11 @@ of https://github.com/alex-nardozzi/MoreRVers.
 
 ## Step 2. The mod
 
-1. Copy the `mod/Mods/RVThereYetMenu` folder from this repository into
-   `...\Win64\ue4ss\Mods\`, so that you get:
+Extract the ModOnly archive into `Win64\ue4ss\` (NOT into `Win64\`), or
+copy the folders by hand:
+
+1. `ue4ss\Mods\RVThereYetMenu\` from the `mod/Mods/RVThereYetMenu` folder
+   of this repository:
 
    ```
    ue4ss\Mods\RVThereYetMenu\
