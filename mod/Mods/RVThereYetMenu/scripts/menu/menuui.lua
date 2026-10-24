@@ -45,7 +45,7 @@ function MenuUI.SetStatus(text)
     if #truncated > 160 then truncated = truncated:sub(1, 157) .. "..." end
     ExecuteInGameThread(function()
         if Guard.IsValid(statusText) then
-            statusText:UpdateText(truncated)
+            Widgets.SetText(statusText, truncated)
         end
     end)
 end
@@ -81,6 +81,7 @@ local function buildHud()
     local ok, err = pcall(function()
         hud = StaticConstructObject(StaticFindObject("/Script/UMG.UserWidget"), gameInstance, FName(Widgets.UniqueName("HUD")))
         hud.WidgetTree = StaticConstructObject(StaticFindObject("/Script/UMG.WidgetTree"), hud, FName(Widgets.UniqueName("Tree")))
+        Widgets.BindTree(hud.WidgetTree)
 
         rootCanvas = Widgets.Canvas(hud.WidgetTree)
         hud.WidgetTree.RootWidget = rootCanvas
@@ -145,6 +146,7 @@ local function buildHud()
     end)
 
     if not ok then
+        Widgets.BindTree(nil)
         hud = nil
         rootCanvas = nil
         tabSwitcher = nil
@@ -219,6 +221,7 @@ end
 function MenuUI.Invalidate()
     local wasOpen = isOpen
     isOpen = false
+    Widgets.BindTree(nil)
     hud = nil
     rootCanvas = nil
     tabSwitcher = nil

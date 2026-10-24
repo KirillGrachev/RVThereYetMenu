@@ -1,11 +1,12 @@
 --- Widgets — фабрика UMG-виджетов из чистого Lua.
 ---
---- Приём (проверен сообществом на UE5, SupraTools/ModMenu): объект
---- виджета создаётся StaticConstructObject от класса, найденного
---- StaticFindObject("/Script/UMG.<Class>"), и крепится в дерево вручную:
----   hud.WidgetTree = StaticConstructObject(WidgetTree, hud)
----   root = CanvasPanel; hud.WidgetTree.RootWidget = root
----   child = Border(root-outer); canvas:AddChildToCanvas(child)
+--- Приём (проверен сообществом на UE5, SupraTools/ModMenu): виджеты меню
+--- создаёт само дерево (WidgetTree:ConstructWidget — штатный путь UMG,
+--- виджет сразу регистрируется в дереве на отрисовку и тик); raw
+--- StaticConstructObject остаётся фолбэком для сборок без этого метода.
+--- После создания виджет проверяется на валидность: nullptr-обёртка
+--- вместо виджета означает ошибку построения и обязана всплыть сразу,
+--- а не первым же нажатием кнопки меню.
 ---
 --- Имена UObject обязаны быть уникальными в пределах outer'а — поэтому
 --- все имена генерируются счётчиком (урок ModMenu: два мода с одинаковыми
@@ -14,6 +15,9 @@
 --- FText в UE5.4+ требует signature-файл FText_Constructor.lua (идёт в
 --- нашем наборе установки). Делаем три уровня деградации:
 ---   FText(s) → UKismetTextLibrary.Conv_StringToText(s) → сырая строка.
+---
+--- Lua-поля на обёртках UObject не используются: подписи виджетов живут
+--- в боковых weak-таблицах, тексты меняются нативным SetText.
 local Guard = require("core.guard")
 local Log = require("core.log")
 local Theme = require("menu.theme")
@@ -22,10 +26,22 @@ local Widgets = {}
 
 local nameCounter = 0
 local ftextBroken = false
+local boundTree = nil
+
+--- Подписи кнопок: button -> TextBlock его надписи (weak по ключу,
+--- чтобы уничтоженные виджеты не держали память).
+local buttonLabels = setmetatable({}, { __mode = "k" })
 
 function Widgets.UniqueName(base)
     nameCounter = nameCounter + 1
     return string.format("RVTYM_%s_%d", base or "W", nameCounter)
+end
+
+--- Привязывает дерево виджетов меню: с ним фабрики создают виджеты
+--- штатным ConstructWidget. Вызывается при построении окна и
+--- сбрасывается при инвалидации.
+function Widgets.BindTree(tree)
+    boundTree = tree
 end
 
 --- Создать виджет класса UMG. classPath — "/Script/UMG.Border" и т.п.
@@ -34,7 +50,20 @@ function Widgets.New(classPath, outer, name)
     if widgetClass == nil then
         error("widget class not found: " .. classPath)
     end
-    return StaticConstructObject(widgetClass, outer, FName(name or Widgets.UniqueName()))
+    local widgetName = FName(name or Widgets.UniqueName())
+    if boundTree ~= nil and Guard.IsValid(boundTree) then
+        local okConstruct, constructed = pcall(function()
+            return boundTree:ConstructWidget(widgetClass, widgetName)
+        end)
+        if okConstruct and constructed ~= nil and Guard.IsValid(constructed) then
+            return constructed
+        end
+    end
+    local widget = StaticConstructObject(widgetClass, outer, widgetName)
+    if widget == nil or not Guard.IsValid(widget) then
+        error("widget construct failed: " .. classPath)
+    end
+    return widget
 end
 
 --- FText с деградацией (см. шапку файла).
@@ -57,6 +86,19 @@ function Widgets.Text(raw)
     return text
 end
 
+--- Меняет текст TextBlock нативным SetText (без Lua-полей на обёртке).
+function Widgets.SetText(textBlock, text)
+    if not Guard.IsValid(textBlock) then return end
+    pcall(function() textBlock:SetText(Widgets.Text(text)) end)
+end
+
+--- Меняет надпись кнопки (по запомненному TextBlock её надписи).
+function Widgets.SetLabel(button, text)
+    local labelText = buttonLabels[button]
+    if labelText == nil then return end
+    Widgets.SetText(labelText, text)
+end
+
 function Widgets.SetVisible(widget, visible)
     if not Guard.IsValid(widget) then return end
     widget.Visibility = visible and Theme.Visibility.SelfHitTestInvisible or Theme.Visibility.Collapsed
@@ -65,25 +107,19 @@ end
 --- Canvas-панель: корень дерева виджетов, дети размещаются слотами с якорями.
 function Widgets.Canvas(outer) return Widgets.New("/Script/UMG.CanvasPanel", outer) end
 
---- Вертикальный бокс; поле Add у возвращённого виджета добавляет ребёнка.
+--- Вертикальный бокс; дети добавляются через Widgets.AddTo.
 function Widgets.VBox(outer)
-    local box = Widgets.New("/Script/UMG.VerticalBox", outer)
-    box.Add = function(_, child) return box:AddChildToVerticalBox(child) end
-    return box
+    return Widgets.New("/Script/UMG.VerticalBox", outer)
 end
 
---- Горизонтальный бокс; поле Add у возвращённого виджета добавляет ребёнка.
+--- Горизонтальный бокс; дети добавляются через Widgets.AddTo.
 function Widgets.HBox(outer)
-    local box = Widgets.New("/Script/UMG.HorizontalBox", outer)
-    box.Add = function(_, child) return box:AddChildToHorizontalBox(child) end
-    return box
+    return Widgets.New("/Script/UMG.HorizontalBox", outer)
 end
 
 --- Прокручиваемый контейнер для длинных вкладок.
 function Widgets.ScrollBox(outer)
-    local scrollBox = Widgets.New("/Script/UMG.ScrollBox", outer)
-    scrollBox.Add = function(_, child) return scrollBox:AddChild(child) end
-    return scrollBox
+    return Widgets.New("/Script/UMG.ScrollBox", outer)
 end
 
 --- Переключатель страниц: по странице на вкладку меню.
@@ -99,9 +135,23 @@ function Widgets.SizeBox(outer)
     return Widgets.New("/Script/UMG.SizeBox", outer)
 end
 
+--- Добавляет child в панель по её нативному методу (vbox/hbox/scrollbox).
+local function panelAddChild(panel, child)
+    if panel.AddChildToVerticalBox then
+        return panel:AddChildToVerticalBox(child)
+    end
+    if panel.AddChildToHorizontalBox then
+        return panel:AddChildToHorizontalBox(child)
+    end
+    if panel.AddChild then
+        return panel:AddChild(child)
+    end
+    error("widget is not a panel container")
+end
+
 --- Добавляет child в vertical/horizontal box с паддингом и (опц.) fill.
 function Widgets.AddTo(box, child, padding, fillWeight)
-    local slot = box:Add(child)
+    local slot = panelAddChild(box, child)
     if slot then
         if padding then
             pcall(function() slot:SetPadding(padding) end)
@@ -135,7 +185,7 @@ function Widgets.AddToCanvas(canvas, child, options)
     return slot
 end
 
---- Текстовый блок; поле UpdateText меняет текст без пересборки дерева.
+--- Текстовый блок; текст меняется Widgets.SetText.
 function Widgets.TextBlock(outer, text, options)
     options = options or {}
     local textBlock = Widgets.New("/Script/UMG.TextBlock", outer)
@@ -150,9 +200,6 @@ function Widgets.TextBlock(outer, text, options)
             textBlock:SetJustification(options.alignment)
         end
     end)
-    textBlock.UpdateText = function(_, newText)
-        pcall(function() textBlock:SetText(Widgets.Text(newText)) end)
-    end
     return textBlock
 end
 
@@ -182,6 +229,7 @@ function Widgets.Button(outer, label, onClick, options)
         color = options.color or Theme.Colors.NormalText,
     })
     Widgets.AddTo(content, labelText, { Left = 8, Top = 4, Right = 8, Bottom = 4 })
+    buttonLabels[button] = labelText
 
     local bindOk, bindError = pcall(function()
         button.OnClicked:Add(function()
@@ -192,7 +240,6 @@ function Widgets.Button(outer, label, onClick, options)
         Log.Warn("button delegate bind failed: " .. tostring(bindError))
     end
 
-    button.SetLabel = function(_, newText) labelText:UpdateText(newText) end
     return button
 end
 
@@ -211,8 +258,6 @@ function Widgets.Checkbox(outer, label, initial, onToggle)
             if onToggle then onToggle(checked == true) end
         end)
     end)
-    row.SetLabel = function(_, newText) labelText:UpdateText(newText) end
-    row.Checkbox = checkbox
     return row
 end
 
@@ -233,11 +278,10 @@ function Widgets.Slider(outer, label, min, max, value, onChange)
     pcall(function()
         slider.OnValueChanged:Add(function(newValue)
             local roundedValue = math.floor((tonumber(newValue) or value) + 0.5)
-            valueText:UpdateText(string.format("%s: %d", label, roundedValue))
+            Widgets.SetText(valueText, string.format("%s: %d", label, roundedValue))
             if onChange then onChange(roundedValue) end
         end)
     end)
-    row.Slider = slider
     return row
 end
 
@@ -267,16 +311,16 @@ function Widgets.DangerButton(outer, label, confirmLabel, onClick, armSeconds)
     button = Widgets.Button(outer, label, function()
         if not armed then
             armed = true
-            button:SetLabel(confirmLabel)
+            Widgets.SetLabel(button, confirmLabel)
             ExecuteWithDelay((armSeconds or 3) * 1000, function()
                 if armed then
                     armed = false
-                    button:SetLabel(label)
+                    Widgets.SetLabel(button, label)
                 end
             end)
         else
             armed = false
-            button:SetLabel(label)
+            Widgets.SetLabel(button, label)
             if onClick then onClick() end
         end
     end, { background = Theme.Colors.DangerousBackground })

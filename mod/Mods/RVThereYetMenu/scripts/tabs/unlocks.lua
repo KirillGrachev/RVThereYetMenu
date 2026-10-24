@@ -39,7 +39,7 @@ function Tab.Refresh()
     if not Guard.IsValid(ui.counts or nil) then return end
     local cosmetics = Unlocks.UnlockedCosmeticsCount()
     local tapes = Unlocks.CollectedTapesCount()
-    ui.counts:UpdateText(string.format("%s: %s   |   %s: %s",
+    Widgets.SetText(ui.counts, string.format("%s: %s   |   %s: %s",
         Lang.T("unlocks.counts.cosmetics"), tostring(cosmetics or "?"),
         Lang.T("unlocks.counts.tapes"), tostring(tapes or "?")))
 end

@@ -54,7 +54,7 @@ function Tab.Refresh()
     if mirror and mirror.original then
         parts[#parts + 1] = Lang.T("session.original") .. ": " .. tostring(mirror.original)
     end
-    ui.status:UpdateText(table.concat(parts, "  |  "))
+    Widgets.SetText(ui.status, table.concat(parts, "  |  "))
 end
 
 return Tab

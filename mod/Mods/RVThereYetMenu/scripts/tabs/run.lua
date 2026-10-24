@@ -47,13 +47,13 @@ end
 function Tab.Refresh()
     for slot = 1, 3 do
         local label = ui.wpStatus[slot]
-        if label and label.UpdateText then
+        if label then
             local waypoint = State.GetMirror("Waypoint." .. slot)
             local text = Lang.T("run.wp.slot", slot)
             if waypoint and waypoint.applied then
                 text = text .. "  (" .. tostring(waypoint.applied.level or "?") .. ")"
             end
-            label:UpdateText(text)
+            Widgets.SetText(label, text)
         end
     end
 end

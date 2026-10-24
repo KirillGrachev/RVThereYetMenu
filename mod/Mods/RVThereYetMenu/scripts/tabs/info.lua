@@ -50,7 +50,7 @@ function Tab.Refresh(context)
         pcall(function()
             engineVersion = string.format("%d.%d", UnrealVersion:GetMajor(), UnrealVersion:GetMinor())
         end)
-        ui.versions:UpdateText(string.format("%s v%s  |  UE4SS %s  |  UE %s",
+        Widgets.SetText(ui.versions, string.format("%s v%s  |  UE4SS %s  |  UE %s",
             Lang.T("menu.title"), tostring(context.Version), ue4ssVersion, engineVersion))
     end
 
@@ -67,11 +67,11 @@ function Tab.Refresh(context)
             "Level: " .. tostring(Engine.LevelName() or "?"),
             "Host: " .. tostring(Engine.IsHost()),
         }
-        ui.diag:UpdateText(table.concat(lines, "\n"))
+        Widgets.SetText(ui.diag, table.concat(lines, "\n"))
     end
 
     if Guard.IsValid(ui.loglevel or nil) then
-        ui.loglevel:UpdateText(Lang.T("info.loglevel") .. ": " .. Log.GetLevel())
+        Widgets.SetText(ui.loglevel, Lang.T("info.loglevel") .. ": " .. Log.GetLevel())
     end
 end
 
