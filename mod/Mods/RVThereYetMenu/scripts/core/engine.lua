@@ -32,11 +32,13 @@ function Engine.PlayerController()
             local localPlayers = gameInstance.LocalPlayers
             if localPlayers and localPlayers.GetArrayNum and localPlayers:GetArrayNum() > 0 then
                 local playerEntry = localPlayers[1]
-                if playerEntry then
-                    local localPlayer = playerEntry.get and playerEntry:get() or playerEntry
-                    -- Обёртка может держать nullptr (фронтенд без контроллера):
-                    -- без проверки валидности чтение свойства бросает исключение.
-                    if Guard.IsValid(localPlayer) then
+                if playerEntry and Guard.IsValid(playerEntry) then
+                    -- get() на обёртке над nullptr бросает исключение:
+                    -- снимаем его pcall-ом, а не только проверкой результата.
+                    local okGet, localPlayer = pcall(function()
+                        return playerEntry.get and playerEntry:get() or playerEntry
+                    end)
+                    if okGet and Guard.IsValid(localPlayer) then
                         return localPlayer.PlayerController
                     end
                 end
@@ -169,9 +171,15 @@ function Engine.CDO(classPath)
     local ok, result = Guard.Try("CDO(" .. classPath .. ")", function()
         local classObject = StaticFindObject(classPath)
         -- StaticFindObject может вернуть обёртку над nullptr для ещё не
-        -- загруженного класса: GetDefaultObject на ней бросает исключение.
+        -- загруженного класса; GetDefaultObject на ней бросает исключение,
+        -- поэтому и класс, и сам CDO проверяются под pcall.
         if classObject == nil or not Guard.IsValid(classObject) then return nil end
-        if classObject.GetDefaultObject then return classObject:GetDefaultObject() end
+        if classObject.GetDefaultObject then
+            local okCdo, classDefaultObject = pcall(function()
+                return classObject:GetDefaultObject()
+            end)
+            if okCdo then return classDefaultObject end
+        end
         return nil
     end)
     if ok then return result end
